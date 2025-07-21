@@ -151,6 +151,7 @@ const Dashboard = () => {
     const dayCupons = cuponsData.filter(c => c['Dia da Semana'] === dayMapping && c.hor_venda !== 'Total');
     
     const totalCupons = dayCupons.reduce((sum, current) => sum + (parseFloat(current['Qtd Cupons Venda']) || 0), 0);
+    const totalFluxo = dayCupons.reduce((sum, current) => sum + (parseFloat(current['qtd_entrante']) || 0), 0);
 
     const dailySchedule = escalaData
       .filter(e => e.DIA === selectedDay && e.ENTRADA)
@@ -167,6 +168,7 @@ const Dashboard = () => {
     return {
       dayCupons,
       totalCupons,
+      totalFluxo,
       dailySchedule,
       minHour,
       maxHour,
@@ -203,16 +205,19 @@ const Dashboard = () => {
 
     const staffPerHour = calculateStaffPerHour(dailyData.dailySchedule, dailyData.minHour, dailyData.maxHour);
     const totalCuponsForPercent = dailyData.totalCupons || 1;
+    const totalFluxoForPercent = dailyData.totalFluxo || 1;
 
     return dailyData.dayCupons.map(cupom => {
       const hour = parseInt(cupom.hor_venda, 10);
       const qtdCupons = parseFloat(cupom['Qtd Cupons Venda']) || 0;
+      const qtdFluxo = parseFloat(cupom['qtd_entrante']) || 0;
       return {
         hora: `${hour}h`,
         funcionarios: staffPerHour[hour] || 0,
         percentualCupons: parseFloat(((qtdCupons / totalCuponsForPercent) * 100).toFixed(1)),
         cupons: qtdCupons,
-        fluxo: parseFloat(cupom['qtd_entrante']) || 0
+        percentualFluxo: parseFloat(((qtdFluxo / totalFluxoForPercent) * 100).toFixed(1)),
+        fluxo: qtdFluxo
       };
     });
   }, [dailyData, calculateStaffPerHour]);
@@ -277,7 +282,7 @@ const Dashboard = () => {
           {payload.map((entry, index) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.name}: {entry.value}
-              {entry.name === '% Cupons' ? '%' : ''}
+              {(entry.name === '% Cupons' || entry.name === 'Fluxo (%)') ? '%' : ''}
             </p>
           ))}
         </div>
@@ -452,12 +457,11 @@ const Dashboard = () => {
                         <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
                         <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
                         <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="fluxo" hide={true} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
                         <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                         <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                        <RechartsLine yAxisId="fluxo" type="monotone" dataKey="fluxo" name="Fluxo de Entrantes" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        <RechartsLine yAxisId="right" type="monotone" dataKey="percentualFluxo" name="Fluxo (%)" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                       </LineChart>
                     ) : (
                       <BarChart data={chartData}>

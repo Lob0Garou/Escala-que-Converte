@@ -212,6 +212,7 @@ const Dashboard = () => {
         funcionarios: staffPerHour[hour] || 0,
         percentualCupons: parseFloat(((qtdCupons / totalCuponsForPercent) * 100).toFixed(1)),
         cupons: qtdCupons,
+        fluxo: parseFloat(cupom['qtd_entrante']) || 0
       };
     });
   }, [dailyData, calculateStaffPerHour]);
@@ -451,10 +452,12 @@ const Dashboard = () => {
                         <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
                         <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
                         <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                        <YAxis yAxisId="fluxo" hide={true} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
                         <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                         <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        <RechartsLine yAxisId="fluxo" type="monotone" dataKey="fluxo" name="Fluxo de Entrantes" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                       </LineChart>
                     ) : (
                       <BarChart data={chartData}>

@@ -156,10 +156,10 @@ const Dashboard = () => {
     // Extrair totais diretamente da linha "Total"
     const totalCupons = totalRow ? (parseFloat(totalRow['qtd_cupom']) || 0) : 0;
     const totalFluxo = totalRow ? (parseFloat(totalRow['qtd_entrante']) || 0) : 0;
-    // Filtrar dados para obter apenas as linhas com horas (números)
+    // Filtrar dados para obter apenas as linhas com horas (convertendo strings para números)
     const dayCupons = cuponsData.filter(c => 
       c['Dia da Semana'] === dayMapping && 
-      typeof c['cod_hora_entrada'] === 'number'
+      !isNaN(parseInt(c['cod_hora_entrada'], 10))
     );
     console.log('DADOS POR HORA FILTRADOS:', dayCupons);
 

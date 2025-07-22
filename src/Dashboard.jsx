@@ -352,6 +352,15 @@ const Dashboard = () => {
   // --- MAIN JSX ---
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 font-sans transition-colors">
+      <style jsx global>{`
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
@@ -403,15 +412,36 @@ const Dashboard = () => {
             {/* Controls */}
             <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <select
-                    value={selectedDay}
-                    onChange={(e) => setSelectedDay(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
-                  >
-                    {Object.keys(diasSemana).map(dia => <option key={dia} value={dia}>{dia}</option>)}
-                  </select>
+                <div className="flex items-center">
+                  <div className="flex bg-gray-100 dark:bg-gray-700/50 rounded-lg p-1 overflow-x-auto scrollbar-hide">
+                    {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'].map((day) => {
+                      const fullDay = {
+                        'SEG': 'SEGUNDA',
+                        'TER': 'TERÇA',
+                        'QUA': 'QUARTA',
+                        'QUI': 'QUINTA',
+                        'SEX': 'SEXTA',
+                        'SAB': 'SÁBADO',
+                        'DOM': 'DOMINGO'
+                      }[day];
+                      
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => setSelectedDay(fullDay)}
+                          className={`
+                            py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200 whitespace-nowrap
+                            ${selectedDay === fullDay 
+                              ? 'bg-blue-500 text-white shadow-md' 
+                              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                            }
+                          `}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <ChartToggleButton type="line" current={chartType} setType={setChartType} />

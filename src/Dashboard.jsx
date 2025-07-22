@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Upload, Calendar, TrendingUp, Users, AlertCircle, Download, BarChart3, LineChart as LineChartIcon, Moon, Sun } from 'lucide-react';
+import { Upload, Calendar, TrendingUp, Users, AlertCircle, Download, BarChart3, LineChart as LineChartIcon, Moon, Sun, LogIn, Coffee, LogOut } from 'lucide-react';
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine } from 'recharts';
 
 // Main App Component
@@ -360,6 +360,27 @@ const Dashboard = () => {
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
         }
+        
+        /* Estilização da barra de rolagem para o container da escala */
+        .schedule-scroll-container::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        .schedule-scroll-container::-webkit-scrollbar-track {
+          background: #2d3748;
+          border-radius: 10px;
+        }
+
+        .schedule-scroll-container::-webkit-scrollbar-thumb {
+          background-color: #4a5568;
+          border-radius: 10px;
+          border: 2px solid #2d3748;
+        }
+
+        .schedule-scroll-container::-webkit-scrollbar-thumb:hover {
+          background-color: #718096;
+        }
       `}</style>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -463,28 +484,43 @@ const Dashboard = () => {
                 <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
                   <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
                 </h3>
-                <div className="overflow-x-auto max-h-[400px] lg:max-h-[600px]">
+                <div className="overflow-x-auto max-h-[400px] lg:max-h-[600px] schedule-scroll-container">
                   {dailyData.dailySchedule.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
                   ) : (
                     <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                      <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700 sticky top-0">
+                      <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                         <tr>
-                          <th scope="col" className="px-4 py-3">Atleta</th>
-                          <th scope="col" className="px-4 py-3">Entrada</th>
-                          <th scope="col" className="px-4 py-3">Intervalo</th>
-                          <th scope="col" className="px-4 py-3">Saída</th>
+                          <th scope="col" className="px-4 py-4 font-semibold">Atleta</th>
+                          <th scope="col" className="px-4 py-4 font-semibold text-center">Entrada</th>
+                          <th scope="col" className="px-4 py-4 font-semibold text-center">Intervalo</th>
+                          <th scope="col" className="px-4 py-4 font-semibold text-center">Saída</th>
                         </tr>
                       </thead>
                       <tbody>
                         {dailyData.dailySchedule.map((person, idx) => (
-                          <tr key={idx} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                            <th scope="row" className="px-4 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                          <tr key={idx} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 odd:bg-white/50 dark:odd:bg-gray-800/30 even:bg-black/5 dark:even:bg-black/20">
+                            <td className="px-4 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
                               {person.ATLETA}
-                            </th>
-                            <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</td>
-                            <td className="px-4 py-3 text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</td>
-                            <td className="px-4 py-3 text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</td>
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <LogIn className="w-4 h-4 text-blue-400" />
+                                <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <Coffee className="w-4 h-4 text-orange-400" />
+                                <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <LogOut className="w-4 h-4 text-green-400" />
+                                <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

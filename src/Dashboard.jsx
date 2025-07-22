@@ -81,6 +81,18 @@ const Dashboard = () => {
     return null;
   };
 
+  /**
+   * Parse numbers from Excel, handling strings with commas and other formats.
+   * @param {any} value - The value from Excel cell.
+   * @returns {number} - Parsed number or 0 if invalid.
+   */
+  const parseNumber = (value) => {
+    if (typeof value === 'string') {
+      return parseFloat(value.replace(/,/g, '')) || 0;
+    }
+    return parseFloat(value) || 0;
+  };
+
   // --- FILE PROCESSING ---
 
   /**
@@ -154,11 +166,12 @@ const Dashboard = () => {
     console.log('LINHA DE TOTAL ENCONTRADA:', totalRow);
     
     // Extrair totais diretamente da linha "Total"
-    const totalCupons = totalRow ? (parseFloat(totalRow['qtd_cupom']) || 0) : 0;
-    const totalFluxo = totalRow ? (parseFloat(totalRow['qtd_entrante']) || 0) : 0;
-    // Filtrar dados para obter apenas as linhas com horas (convertendo strings para números)
+    const totalCupons = totalRow ? parseNumber(totalRow['qtd_cupom']) : 0;
+    const totalFluxo = totalRow ? parseNumber(totalRow['qtd_entrante']) : 0;
+    // Filtrar dados para obter apenas as linhas com horas (excluindo "Total" e strings não numéricas)
     const dayCupons = cuponsData.filter(c => 
       c['Dia da Semana'] === dayMapping && 
+      c['cod_hora_entrada'] !== 'Total' && 
       !isNaN(parseInt(c['cod_hora_entrada'], 10))
     );
     console.log('DADOS POR HORA FILTRADOS:', dayCupons);
@@ -219,8 +232,8 @@ const Dashboard = () => {
 
     return dailyData.dayCupons.map(cupom => {
       const hour = parseInt(cupom['cod_hora_entrada'], 10);
-      const qtdCupons = parseFloat(cupom['qtd_cupom']) || 0;
-      const qtdFluxo = parseFloat(cupom['qtd_entrante']) || 0;
+      const qtdCupons = parseNumber(cupom['qtd_cupom']);
+      const qtdFluxo = parseNumber(cupom['qtd_entrante']);
       return {
         hora: `${hour}h`,
         funcionarios: staffPerHour[hour] || 0,

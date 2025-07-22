@@ -97,8 +97,8 @@ const Dashboard = () => {
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
-
       if (type === 'cupons') {
+        console.log('DADOS BRUTOS DO ARQUIVO:', jsonData);
         setCuponsData(jsonData);
       } else {
         const processedData = jsonData.map(row => ({
@@ -151,16 +151,17 @@ const Dashboard = () => {
     
     // Encontrar a linha de "Total" para o dia selecionado
     const totalRow = cuponsData.find(c => c['Dia da Semana'] === dayMapping && c['cod_hora_entrada'] === 'Total');
+    console.log('LINHA DE TOTAL ENCONTRADA:', totalRow);
     
     // Extrair totais diretamente da linha "Total"
     const totalCupons = totalRow ? (parseFloat(totalRow['qtd_cupom']) || 0) : 0;
     const totalFluxo = totalRow ? (parseFloat(totalRow['qtd_entrante']) || 0) : 0;
-    
     // Filtrar dados para obter apenas as linhas com horas (números)
     const dayCupons = cuponsData.filter(c => 
       c['Dia da Semana'] === dayMapping && 
       typeof c['cod_hora_entrada'] === 'number'
     );
+    console.log('DADOS POR HORA FILTRADOS:', dayCupons);
 
     const dailySchedule = escalaData
       .filter(e => e.DIA === selectedDay && e.ENTRADA)

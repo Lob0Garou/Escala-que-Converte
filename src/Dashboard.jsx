@@ -252,9 +252,9 @@ const Dashboard = () => {
       curr.percentualCupons > max.percentualCupons ? curr : max
     );
     
-    const peakFluxoHour = chartData.reduce((max, curr) =>
+    const peakFluxoHour = chartData.length > 0 ? chartData.reduce((max, curr) =>
       curr.percentualFluxo > max.percentualFluxo ? curr : max
-    );
+    ) : null;
     
     // Filter out the 22:00 hour for understaffed calculation
     const relevantHoursForStaffing = chartData.filter(d => parseInt(d.hora.replace('h', '')) < 22);
@@ -472,12 +472,14 @@ const Dashboard = () => {
                 {insights && (
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <InsightCard type="info" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
-                    <InsightCard type="info" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
+                    {insights.peakFluxoHour &&
+                      <InsightCard type="info" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
+                    }
                     {insights.understaffedHour &&
                       <InsightCard type="warning" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
                     }
                   </div>
-                )
+                )}
 
                 <div id="chart-container" className="w-full h-96 mt-6">
                   <ResponsiveContainer width="100%" height="100%">

@@ -148,10 +148,19 @@ const Dashboard = () => {
     if (!cuponsData.length || !escalaData.length) return null;
 
     const dayMapping = diasSemana[selectedDay];
-    const dayCupons = cuponsData.filter(c => c['Dia da Semana'] === dayMapping && c.hor_venda !== 'Total');
     
-    const totalCupons = dayCupons.reduce((sum, current) => sum + (parseFloat(current['Qtd Cupons Venda']) || 0), 0);
-    const totalFluxo = dayCupons.reduce((sum, current) => sum + (parseFloat(current['qtd_entrante']) || 0), 0);
+    // Encontrar a linha de "Total" para o dia selecionado
+    const totalRow = cuponsData.find(c => c['Dia da Semana'] === dayMapping && c['cod_hora_entrada'] === 'Total');
+    
+    // Extrair totais diretamente da linha "Total"
+    const totalCupons = totalRow ? (parseFloat(totalRow['qtd_cupom']) || 0) : 0;
+    const totalFluxo = totalRow ? (parseFloat(totalRow['qtd_entrante']) || 0) : 0;
+    
+    // Filtrar dados para obter apenas as linhas com horas (números)
+    const dayCupons = cuponsData.filter(c => 
+      c['Dia da Semana'] === dayMapping && 
+      typeof c['cod_hora_entrada'] === 'number'
+    );
 
     const dailySchedule = escalaData
       .filter(e => e.DIA === selectedDay && e.ENTRADA)
@@ -161,7 +170,7 @@ const Dashboard = () => {
         return timeA - timeB;
       });
       
-    const operatingHours = dayCupons.map(c => parseInt(c.hor_venda, 10)).sort((a, b) => a - b);
+    const operatingHours = dayCupons.map(c => parseInt(c['cod_hora_entrada'], 10)).sort((a, b) => a - b);
     const minHour = operatingHours.length > 0 ? operatingHours[0] : 10;
     const maxHour = operatingHours.length > 0 ? operatingHours[operatingHours.length - 1] : 23;
 
@@ -208,8 +217,8 @@ const Dashboard = () => {
     const totalFluxoForPercent = dailyData.totalFluxo || 1;
 
     return dailyData.dayCupons.map(cupom => {
-      const hour = parseInt(cupom.hor_venda, 10);
-      const qtdCupons = parseFloat(cupom['Qtd Cupons Venda']) || 0;
+      const hour = parseInt(cupom['cod_hora_entrada'], 10);
+      const qtdCupons = parseFloat(cupom['qtd_cupom']) || 0;
       const qtdFluxo = parseFloat(cupom['qtd_entrante']) || 0;
       return {
         hora: `${hour}h`,
@@ -252,7 +261,9 @@ const Dashboard = () => {
           'Hora': item.hora,
           'Funcionários': item.funcionarios,
           'Percentual Cupons (%)': item.percentualCupons,
-          'Quantidade Cupons': item.cupons
+          'Quantidade Cupons': item.cupons,
+          'Percentual Fluxo (%)': item.percentualFluxo,
+          'Quantidade Fluxo': item.fluxo
         }));
 
         const insightsData = [
@@ -282,7 +293,7 @@ const Dashboard = () => {
           {payload.map((entry, index) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.name}: {entry.value}
-              {(entry.name === '% Cupons' || entry.name === 'Fluxo (%)') ? '%' : ''}
+              {entry.name.includes('%') ? '%' : ''}
             </p>
           ))}
         </div>
@@ -473,6 +484,7 @@ const Dashboard = () => {
                         <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
                         <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
                         <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
+                        <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
                       </BarChart>
                     )}
                   </ResponsiveContainer>

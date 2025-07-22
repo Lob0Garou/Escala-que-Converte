@@ -356,10 +356,10 @@ const Dashboard = () => {
         {/* Header */}
         <header className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-            Dashboard de Cupons e Escala Operacional
+            Escala de Alta Performance
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-            Otimize a distribuição de funcionários com base no volume de vendas.
+            Garanta a cobertura ideal para cada pico de vendas e evite ociosidade.
           </p>
         </header>
 

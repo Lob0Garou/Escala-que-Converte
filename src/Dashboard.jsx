@@ -471,12 +471,12 @@ const Dashboard = () => {
                 
                 {insights && (
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <InsightCard type="info" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
+                    <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
                     {insights.peakFluxoHour &&
-                      <InsightCard type="info" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
+                      <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
                     }
                     {insights.understaffedHour &&
-                      <InsightCard type="warning" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
+                      <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
                     }
                   </div>
                 )}
@@ -543,21 +543,28 @@ const ChartToggleButton = ({ type, current, setType }) => {
     );
 };
 
-const InsightCard = ({ type, title, text }) => {
-    const baseClasses = "rounded-lg p-4";
-    const typeClasses = {
-        info: "bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200",
-        warning: "bg-orange-50 dark:bg-orange-900/40 text-orange-900 dark:text-orange-200"
-    };
-    const iconColor = {
-        info: "text-blue-600 dark:text-blue-400",
-        warning: "text-orange-600 dark:text-orange-400"
+const InsightCard = ({ category, title, text }) => {
+    const colorMap = {
+        cupons: {
+            wrapper: "bg-green-50 dark:bg-green-900/40 text-green-900 dark:text-green-200",
+            icon: "text-green-600 dark:text-green-400"
+        },
+        fluxo: {
+            wrapper: "bg-yellow-50 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-200",
+            icon: "text-yellow-600 dark:text-yellow-400"
+        },
+        funcionarios: {
+            wrapper: "bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200",
+            icon: "text-blue-600 dark:text-blue-400"
+        }
     };
 
+    const styles = colorMap[category] || colorMap.cupons;
+
     return (
-        <div className={`${baseClasses} ${typeClasses[type]}`}>
+        <div className={`rounded-lg p-4 ${styles.wrapper}`}>
             <div className="flex items-start gap-3">
-                <AlertCircle className={`w-5 h-5 ${iconColor[type]} mt-0.5 flex-shrink-0`} />
+                <AlertCircle className={`w-5 h-5 ${styles.icon} mt-0.5 flex-shrink-0`} />
                 <div>
                     <p className="text-sm font-semibold">{title}</p>
                     <p className="text-sm">{text}</p>

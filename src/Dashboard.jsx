@@ -490,7 +490,7 @@ const Dashboard = () => {
                   ) : (
                     <div>
                       {/* --- CABEÇALHO DA GRADE --- */}
-                      <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+                      <div className="grid grid-cols-[minmax(0,_1fr)_auto_auto_auto] gap-4 sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 py-3 px-4 border-b border-gray-200 dark:border-gray-700">
                         <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400">Atleta</div>
                         <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Entrada</div>
                         <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Intervalo</div>

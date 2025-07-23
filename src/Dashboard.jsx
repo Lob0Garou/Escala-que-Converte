@@ -477,10 +477,10 @@ const Dashboard = () => {
               </div>
             </section>
 
-            {/* Main Grid: Schedule, Chart, Insights */}
-            <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Schedule Column */}
-              <aside className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
+            {/* Main Layout: 2 Column Flexbox */}
+            <main className="flex flex-col lg:flex-row gap-6">
+              {/* Schedule Column - Fixed Width */}
+              <aside className="lg:w-[480px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
                 <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2 flex-shrink-0">
                   <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
                 </h3>
@@ -529,8 +529,8 @@ const Dashboard = () => {
                 </div>
               </aside>
 
-              {/* Chart & Insights Column */}
-              <section className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              {/* Chart & Insights Column - Flexible Width */}
+              <section className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
                 <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
                 </h3>

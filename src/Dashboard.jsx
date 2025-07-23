@@ -405,9 +405,9 @@ const Dashboard = () => {
   );
 
   const MainContent = ({ dailyData, insights, chartData, chartType, theme }) => (
-    <main className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* Column 1: Schedule */}
-      <aside className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+    <main className="flex flex-col lg:flex-row gap-6">
+      {/* Coluna da Esquerda: Schedule */}
+      <aside className="lg:w-[480px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
         <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
         </h3>
@@ -456,60 +456,63 @@ const Dashboard = () => {
         </div>
       </aside>
 
-      {/* Column 2: Chart */}
-      <section className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
-        </h3>
-        
-        <div id="chart-container" className="w-full h-96">
-          <ResponsiveContainer width="100%" height="100%">
-            {chartType === 'line' ? (
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                <RechartsLine yAxisId="right" type="monotone" dataKey="percentualFluxo" name="Fluxo (%)" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
-            ) : (
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
-                <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
-                <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
-              </BarChart>
-            )}
-          </ResponsiveContainer>
-        </div>
-      </section>
+      {/* Coluna da Direita: Insights + Chart */}
+      <div className="flex-1 flex flex-col gap-6">
+        {/* Insights - Primeiro na coluna da direita */}
+        <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-purple-500" /> Insights
+          </h3>
+          {insights && (
+            <div className="space-y-4">
+              <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
+              {insights.peakFluxoHour &&
+                <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
+              }
+              {insights.understaffedHour &&
+                <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
+              }
+            </div>
+          )}
+        </section>
 
-      {/* Column 3: Insights */}
-      <aside className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-purple-500" /> Insights
-        </h3>
-        {insights && (
-          <div className="space-y-4">
-            <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
-            {insights.peakFluxoHour &&
-              <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
-            }
-            {insights.understaffedHour &&
-              <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
-            }
+        {/* Chart - Segundo na coluna da direita */}
+        <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
+          </h3>
+          
+          <div id="chart-container" className="w-full h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === 'line' ? (
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                  <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                  <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <RechartsLine yAxisId="right" type="monotone" dataKey="percentualFluxo" name="Fluxo (%)" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
+              ) : (
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                  <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                  <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
+                  <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
+                  <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
           </div>
-        )}
-      </aside>
+        </section>
+      </div>
     </main>
   );
 

@@ -18,7 +18,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState({ cupons: null, escala: null });
   const [theme, setTheme] = useState('dark'); // Default theme is now dark
-  const [showUploadSection, setShowUploadSection] = useState(true);
+  const [showUploadSection, setShowUploadSection] = useState(false);
 
   // --- THEME SWITCHER ---
   useEffect(() => {

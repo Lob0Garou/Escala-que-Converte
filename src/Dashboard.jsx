@@ -480,56 +480,42 @@ const Dashboard = () => {
             {/* Main Grid: Schedule, Chart, Insights */}
             <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Schedule Column */}
-              <aside className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <aside className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2 flex-shrink-0">
                   <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
                 </h3>
-                <div className="max-h-[400px] lg:max-h-[600px] schedule-scroll-container overflow-y-auto">
+                <div className="flex-grow overflow-y-auto schedule-scroll-container">
                   {dailyData.dailySchedule.length === 0 ? (
                     <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
                   ) : (
-                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-0">
-                      {/* Sticky Header */}
-                      <div className="contents">
-                        <div className="sticky top-0 z-10 px-4 py-4 font-semibold text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700/50">
-                          Atleta
-                        </div>
-                        <div className="sticky top-0 z-10 px-4 py-4 font-semibold text-xs text-gray-700 dark:text-gray-400 uppercase text-center bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700/50">
-                          Entrada
-                        </div>
-                        <div className="sticky top-0 z-10 px-4 py-4 font-semibold text-xs text-gray-700 dark:text-gray-400 uppercase text-center bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700/50">
-                          Intervalo
-                        </div>
-                        <div className="sticky top-0 z-10 px-4 py-4 font-semibold text-xs text-gray-700 dark:text-gray-400 uppercase text-center bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700/50">
-                          Saída
-                        </div>
+                    <div>
+                      {/* --- CABEÇALHO DA GRADE --- */}
+                      <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400">Atleta</div>
+                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Entrada</div>
+                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Intervalo</div>
+                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Saída</div>
                       </div>
 
-                      {/* Data Rows */}
+                      {/* --- LINHAS DE DADOS --- */}
                       {dailyData.dailySchedule.map((person, idx) => (
-                        <React.Fragment key={idx}>
-                          <div className={`px-4 py-4 font-bold text-base text-gray-900 dark:text-white border-b dark:border-gray-700/50 ${idx % 2 === 0 ? 'bg-white/50 dark:bg-gray-800/30' : 'bg-black/5 dark:bg-black/20'} hover:bg-gray-50 dark:hover:bg-gray-700/30`}>
+                        <div key={idx} className={`grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 items-center border-b border-gray-200 dark:border-gray-700/50 ${idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-transparent'}`}>
+                          <div className="px-4 py-4 font-bold text-gray-900 dark:text-white">
                             {person.ATLETA}
                           </div>
-                          <div className={`px-4 py-4 text-center border-b dark:border-gray-700/50 ${idx % 2 === 0 ? 'bg-white/50 dark:bg-gray-800/30' : 'bg-black/5 dark:bg-black/20'} hover:bg-gray-50 dark:hover:bg-gray-700/30`}>
-                            <div className="flex items-center justify-center gap-2">
-                              <LogIn className="w-4 h-4 text-blue-400" />
-                              <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
-                            </div>
+                          <div className="px-4 py-4 flex items-center justify-center gap-2 text-blue-500 dark:text-blue-400 font-medium">
+                            <LogIn size={16} />
+                            <span>{person.ENTRADA}</span>
                           </div>
-                          <div className={`px-4 py-4 text-center border-b dark:border-gray-gray-700/50 ${idx % 2 === 0 ? 'bg-white/50 dark:bg-gray-800/30' : 'bg-black/5 dark:bg-black/20'} hover:bg-gray-50 dark:hover:bg-gray-700/30`}>
-                            <div className="flex items-center justify-center gap-2">
-                              <Coffee className="w-4 h-4 text-orange-400" />
-                              <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
-                            </div>
+                          <div className="px-4 py-4 flex items-center justify-center gap-2 text-orange-500 dark:text-orange-400 font-medium">
+                            <Coffee size={16} />
+                            <span>{person.INTER || 'N/A'}</span>
                           </div>
-                          <div className={`px-4 py-4 text-center border-b dark:border-gray-700/50 ${idx % 2 === 0 ? 'bg-white/50 dark:bg-gray-800/30' : 'bg-black/5 dark:bg-black/20'} hover:bg-gray-50 dark:hover:bg-gray-700/30`}>
-                            <div className="flex items-center justify-center gap-2">
-                              <LogOut className="w-4 h-4 text-green-400" />
-                              <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
-                            </div>
+                          <div className="px-4 py-4 flex items-center justify-center gap-2 text-green-500 dark:text-green-400 font-medium">
+                            <LogOut size={16} />
+                            <span>{person.SAIDA}</span>
                           </div>
-                        </React.Fragment>
+                        </div>
                       ))}
                     </div>
                   )}

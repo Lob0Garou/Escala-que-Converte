@@ -122,11 +122,6 @@ const Dashboard = () => {
         }));
         setEscalaData(processedData);
       }
-      
-      // Hide upload section when both files are loaded
-      if ((type === 'cupons' && escalaData.length > 0) || (type === 'escala' && cuponsData.length > 0)) {
-        setShowUploadSection(false);
-      }
     } catch (err) {
       console.error(`Error processing ${type} file:`, err);
       setError(prev => ({ ...prev, [type]: 'Erro ao processar. Verifique o formato do arquivo.' }));
@@ -309,6 +304,215 @@ const Dashboard = () => {
   
   // --- RENDER COMPONENTS ---
 
+  const Header = () => (
+    <header className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+        Escala de Alta Performance
+      </h1>
+      <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
+        Garanta a cobertura ideal para cada pico de vendas e evite ociosidade.
+      </p>
+    </header>
+  );
+
+  const LoadingOverlay = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-8 shadow-xl text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-gray-700">Processando arquivo...</p>
+      </div>
+    </div>
+  );
+
+  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, escalaData, error }) => (
+    <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <UploadBox 
+        type="cupons"
+        title="Arquivo de Cupons"
+        onUpload={handleFileUpload}
+        onDrag={handleDrag}
+        onDrop={handleDrop}
+        dragActiveState={dragActive.cupons}
+        data={cuponsData}
+        errorState={error.cupons}
+      />
+      <UploadBox 
+        type="escala"
+        title="Arquivo de Escala"
+        onUpload={handleFileUpload}
+        onDrag={handleDrag}
+        onDrop={handleDrop}
+        dragActiveState={dragActive.escala}
+        data={escalaData}
+        errorState={error.escala}
+      />
+    </section>
+  );
+
+  const Controls = ({ diasAbreviados, fullDayNames, selectedDay, setSelectedDay, chartType, setChartType, toggleTheme, theme, setShowUploadSection }) => (
+    <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center">
+          <div className="flex bg-gray-100 dark:bg-gray-700/50 rounded-lg p-1 overflow-x-auto scrollbar-hide">
+            {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'].map((day) => {
+              const fullDay = {
+                'SEG': 'SEGUNDA',
+                'TER': 'TERÇA',
+                'QUA': 'QUARTA',
+                'QUI': 'QUINTA',
+                'SEX': 'SEXTA',
+                'SAB': 'SÁBADO',
+                'DOM': 'DOMINGO'
+              }[day];
+              
+              return (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(fullDay)}
+                  className={`
+                    py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200 whitespace-nowrap
+                    ${selectedDay === fullDay 
+                      ? 'bg-blue-500 text-white shadow-md' 
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }
+                  `}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+            <ChartToggleButton type="line" current={chartType} setType={setChartType} />
+            <ChartToggleButton type="bar" current={chartType} setType={setChartType} />
+            <button onClick={exportData} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">
+                <Download className="w-4 h-4" /> Exportar
+            </button>
+            <button 
+              onClick={() => setShowUploadSection(prev => !prev)}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Alterar Ficheiros</span>
+            </button>
+            <button onClick={toggleTheme} className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </button>
+        </div>
+      </div>
+    </section>
+  );
+
+  const MainContent = ({ dailyData, insights, chartData, chartType, theme }) => (
+    <main className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Column 1: Schedule */}
+      <aside className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
+        </h3>
+        <div className="max-h-[400px] lg:max-h-[600px] overflow-y-auto schedule-scroll-container">
+          {dailyData.dailySchedule.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
+          ) : (
+            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+              <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                <tr>
+                  <th scope="col" className="px-3 py-4 font-semibold w-2/5 lg:w-1/2">Atleta</th>
+                  <th scope="col" className="px-3 py-4 font-semibold text-center w-1/5 lg:w-1/6">Entrada</th>
+                  <th scope="col" className="px-3 py-4 font-semibold text-center w-1/5 lg:w-1/6">Intervalo</th>
+                  <th scope="col" className="px-3 py-4 font-semibold text-center w-1/5 lg:w-1/6">Saída</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailyData.dailySchedule.map((person, idx) => (
+                  <tr key={idx} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 odd:bg-white/50 dark:odd:bg-gray-800/30 even:bg-black/5 dark:even:bg-black/20">
+                    <td className="px-4 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
+                      {person.ATLETA}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <LogIn className="w-4 h-4 text-blue-400" />
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Coffee className="w-4 h-4 text-orange-400" />
+                        <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <LogOut className="w-4 h-4 text-green-400" />
+                        <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </aside>
+
+      {/* Column 2: Chart */}
+      <section className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
+        </h3>
+        
+        <div id="chart-container" className="w-full h-96">
+          <ResponsiveContainer width="100%" height="100%">
+            {chartType === 'line' ? (
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <RechartsLine yAxisId="right" type="monotone" dataKey="percentualFluxo" name="Fluxo (%)" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            ) : (
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
+                <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
+                <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Column 3: Insights */}
+      <aside className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-purple-500" /> Insights
+        </h3>
+        {insights && (
+          <div className="space-y-4">
+            <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
+            {insights.peakFluxoHour &&
+              <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
+            }
+            {insights.understaffedHour &&
+              <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
+            }
+          </div>
+        )}
+      </aside>
+    </main>
+  );
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -388,201 +592,78 @@ const Dashboard = () => {
           background-color: #718096;
         }
       `}</style>
+      
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-            Escala de Alta Performance
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-            Garanta a cobertura ideal para cada pico de vendas e evite ociosidade.
-          </p>
-        </header>
+        <Header />
 
-        {/* Loading Overlay */}
-        {loading && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 shadow-xl text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-4 text-gray-700">Processando arquivo...</p>
-            </div>
-          </div>
-        )}
+        {loading && <LoadingOverlay />}
 
-        {/* Upload Section - Visível apenas quando não há dados */}
+        {/* --- LÓGICA DE RENDERIZAÇÃO UNIFICADA E CORRETA --- */}
+
+        {/* Se NÃO houver dados, mostra apenas a seção de upload */}
         {!dailyData && (
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <UploadBox 
-              type="cupons"
-              title="Arquivo de Cupons"
-              onUpload={handleFileUpload}
-              onDrag={handleDrag}
-              onDrop={handleDrop}
-              dragActiveState={dragActive.cupons}
-              data={cuponsData}
-              errorState={error.cupons}
-            />
-            <UploadBox 
-              type="escala"
-              title="Arquivo de Escala"
-              onUpload={handleFileUpload}
-              onDrag={handleDrag}
-              onDrop={handleDrop}
-              dragActiveState={dragActive.escala}
-              data={escalaData}
-              errorState={error.escala}
-            />
-          </section>
+          <UploadSection 
+            processFile={processFile} 
+            dragActive={dragActive} 
+            setDragActive={setDragActive}
+            cuponsData={cuponsData}
+            escalaData={escalaData}
+            error={error}
+          />
         )}
 
-        {/* Main Content: Shown only when data is loaded */}
-        {dailyData ? (
+        {/* Se HOUVER dados, mostra os controles e o conteúdo principal */}
+        {dailyData && (
           <>
-            {/* Controls */}
-            <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center">
-                  <div className="flex bg-gray-100 dark:bg-gray-700/50 rounded-lg p-1 overflow-x-auto scrollbar-hide">
-                    {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'].map((day) => {
-                      const fullDay = {
-                        'SEG': 'SEGUNDA',
-                        'TER': 'TERÇA',
-                        'QUA': 'QUARTA',
-                        'QUI': 'QUINTA',
-                        'SEX': 'SEXTA',
-                        'SAB': 'SÁBADO',
-                        'DOM': 'DOMINGO'
-                      }[day];
-                      
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => setSelectedDay(fullDay)}
-                          className={`
-                            py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200 whitespace-nowrap
-                            ${selectedDay === fullDay 
-                              ? 'bg-blue-500 text-white shadow-md' 
-                              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }
-                          `}
-                        >
-                          {day}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {(cuponsData.length > 0 || escalaData.length > 0) && (
-                      <button 
-                        onClick={() => setShowUploadSection(!showUploadSection)} 
-                        className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
-                      >
-                        <Upload className="w-4 h-4" />
-                        {showUploadSection ? 'Ocultar Upload' : 'Alterar Arquivos'}
-                      </button>
-                    )}
-                    <ChartToggleButton type="line" current={chartType} setType={setChartType} />
-                    <ChartToggleButton type="bar" current={chartType} setType={setChartType} />
-                    <button onClick={exportData} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">
-                        <Download className="w-4 h-4" /> Exportar
-                    </button>
-                    <button onClick={toggleTheme} className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                      {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                    </button>
-                </div>
-              </div>
-            </section>
+            <Controls 
+              diasAbreviados={['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM']}
+              fullDayNames={{
+                'SEG': 'SEGUNDA',
+                'TER': 'TERÇA',
+                'QUA': 'QUARTA',
+                'QUI': 'QUINTA',
+                'SEX': 'SEXTA',
+                'SAB': 'SÁBADO',
+                'DOM': 'DOMINGO'
+              }}
+              selectedDay={selectedDay}
+              setSelectedDay={setSelectedDay}
+              chartType={chartType}
+              setChartType={setChartType}
+              toggleTheme={toggleTheme}
+              theme={theme}
+              setShowUploadSection={setShowUploadSection}
+            />
 
-            {/* Main Layout: 2 Column Flexbox */}
-            <main className="flex flex-col lg:flex-row gap-6">
-              {/* Schedule Column - Fixed Width */}
-              <aside className="lg:w-[480px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2 flex-shrink-0">
-                  <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
-                </h3>
-                
-                {/* ESTE É O NOVO CÓDIGO SIMPLIFICADO PARA A ESCALA */}
-                <div className="flex-grow overflow-y-auto schedule-scroll-container">
-                  {dailyData.dailySchedule.length === 0 ? (
-                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
-                  ) : (
-                    <div>
-                      {/* --- CABEÇALHO --- */}
-                      <div className="grid grid-cols-4 gap-4 sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 py-3 px-4 border-b border-gray-200 dark:border-gray-700">
-                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Atleta</div>
-                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Entrada</div>
-                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Intervalo</div>
-                        <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Saída</div>
-                      </div>
+            {/* A seção de upload retrátil SÓ aparece se o estado for true */}
+            {showUploadSection && (
+               <UploadSection 
+                  processFile={processFile} 
+                  dragActive={dragActive} 
+                  setDragActive={setDragActive}
+                  cuponsData={cuponsData}
+                  escalaData={escalaData}
+                  error={error}
+                />
+            )}
 
-                      {/* --- LINHAS DE DADOS --- */}
-                      {dailyData.dailySchedule.map((person, idx) => (
-                        <div 
-                          key={idx} 
-                          className={`grid grid-cols-4 gap-4 items-center border-b border-gray-200 dark:border-gray-700/50 text-center ${idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-transparent'}`}
-                        >
-                          <div className="px-2 py-4 font-bold text-gray-900 dark:text-white">{person.ATLETA}</div>
-                          <div className="px-2 py-4 font-medium text-blue-400">{person.ENTRADA}</div>
-                          <div className="px-2 py-4 font-medium text-orange-400">{person.INTER || 'N/A'}</div>
-                          <div className="px-2 py-4 font-medium text-green-400">{person.SAIDA}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </aside>
-
-              {/* Chart & Insights Column - Flexible Width */}
-              <section className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
-                </h3>
-                
-                {insights && (
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
-                    {insights.peakFluxoHour &&
-                      <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
-                    }
-                    {insights.understaffedHour &&
-                      <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
-                    }
-                  </div>
-                )}
-
-                <div id="chart-container" className="w-full h-96 mt-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {chartType === 'line' ? (
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                        <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                        <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                        <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                        <RechartsLine yAxisId="right" type="monotone" dataKey="percentualFluxo" name="Fluxo (%)" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                      </LineChart>
-                    ) : (
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                        <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                        <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
-                        <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
-                        <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
-                      </BarChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
-              </section>
-            </main>
+            <MainContent 
+              dailyData={dailyData} 
+              insights={insights}
+              chartData={chartData}
+              chartType={chartType}
+              theme={theme}
+            />
           </>
+        )}
+
+        {/* Empty State - apenas quando não há dados E não está carregando */}
+        {!dailyData && !loading && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
+            <Upload className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Carregue os arquivos para começar</h3>
+            <p className="text-gray-500 dark:text-gray-400">Faça upload dos arquivos de cupons e escala para visualizar os dados.</p>
+          </div>
         )}
       </div>
     </div>

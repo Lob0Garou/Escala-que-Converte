@@ -510,15 +510,15 @@ const Dashboard = () => {
                           <div className="px-4 py-4 font-bold text-gray-900 dark:text-white">
                             {person.ATLETA}
                           </div>
-                          <div className="px-4 py-4 flex items-center justify-center gap-2 text-blue-500 dark:text-blue-400 font-medium">
+                          <div className="px-4 py-4 flex items-center justify-start gap-2 text-blue-500 dark:text-blue-400 font-medium">
                             <LogIn size={16} />
                             <span>{person.ENTRADA}</span>
                           </div>
-                          <div className="px-4 py-4 flex items-center justify-center gap-2 text-orange-500 dark:text-orange-400 font-medium">
+                          <div className="px-4 py-4 flex items-center justify-start gap-2 text-orange-500 dark:text-orange-400 font-medium">
                             <Coffee size={16} />
                             <span>{person.INTER || 'N/A'}</span>
                           </div>
-                          <div className="px-4 py-4 flex items-center justify-center gap-2 text-green-500 dark:text-green-400 font-medium">
+                          <div className="px-4 py-4 flex items-center justify-start gap-2 text-green-500 dark:text-green-400 font-medium">
                             <LogOut size={16} />
                             <span>{person.SAIDA}</span>
                           </div>

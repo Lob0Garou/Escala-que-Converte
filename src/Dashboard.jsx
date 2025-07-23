@@ -18,6 +18,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState({ cupons: null, escala: null });
   const [theme, setTheme] = useState('dark'); // Default theme is now dark
+  const [showUploadSection, setShowUploadSection] = useState(true);
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -120,6 +121,11 @@ const Dashboard = () => {
           SAIDA: excelTimeToString(row.SAIDA)
         }));
         setEscalaData(processedData);
+      }
+      
+      // Hide upload section when both files are loaded
+      if ((type === 'cupons' && escalaData.length > 0) || (type === 'escala' && cuponsData.length > 0)) {
+        setShowUploadSection(false);
       }
     } catch (err) {
       console.error(`Error processing ${type} file:`, err);
@@ -403,29 +409,31 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Upload Section */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <UploadBox 
-            type="cupons"
-            title="Arquivo de Cupons"
-            onUpload={handleFileUpload}
-            onDrag={handleDrag}
-            onDrop={handleDrop}
-            dragActiveState={dragActive.cupons}
-            data={cuponsData}
-            errorState={error.cupons}
-          />
-          <UploadBox 
-            type="escala"
-            title="Arquivo de Escala"
-            onUpload={handleFileUpload}
-            onDrag={handleDrag}
-            onDrop={handleDrop}
-            dragActiveState={dragActive.escala}
-            data={escalaData}
-            errorState={error.escala}
-          />
-        </section>
+        {/* Upload Section - Conditionally rendered */}
+        {showUploadSection && (
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <UploadBox 
+              type="cupons"
+              title="Arquivo de Cupons"
+              onUpload={handleFileUpload}
+              onDrag={handleDrag}
+              onDrop={handleDrop}
+              dragActiveState={dragActive.cupons}
+              data={cuponsData}
+              errorState={error.cupons}
+            />
+            <UploadBox 
+              type="escala"
+              title="Arquivo de Escala"
+              onUpload={handleFileUpload}
+              onDrag={handleDrag}
+              onDrop={handleDrop}
+              dragActiveState={dragActive.escala}
+              data={escalaData}
+              errorState={error.escala}
+            />
+          </section>
+        )}
 
         {/* Main Content: Shown only when data is loaded */}
         {dailyData ? (
@@ -465,6 +473,15 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {(cuponsData.length > 0 || escalaData.length > 0) && (
+                      <button 
+                        onClick={() => setShowUploadSection(!showUploadSection)} 
+                        className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                      >
+                        <Upload className="w-4 h-4" />
+                        {showUploadSection ? 'Ocultar Upload' : 'Alterar Arquivos'}
+                      </button>
+                    )}
                     <ChartToggleButton type="line" current={chartType} setType={setChartType} />
                     <ChartToggleButton type="bar" current={chartType} setType={setChartType} />
                     <button onClick={exportData} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">

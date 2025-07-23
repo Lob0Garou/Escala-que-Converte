@@ -497,9 +497,16 @@ const Dashboard = () => {
                         <div className="font-semibold text-sm uppercase text-gray-600 dark:text-gray-400 text-center">Saída</div>
                       </div>
 
-                      {/* --- LINHAS DE DADOS --- */}
+                      {/* --- LINHAS DE DADOS (CÓDIGO CORRIGIDO) --- */}
                       {dailyData.dailySchedule.map((person, idx) => (
-                        <div key={idx} className={`grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 items-center border-b border-gray-200 dark:border-gray-700/50 ${idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-transparent'}`}>
+                        <div 
+                          key={idx} 
+                          className={`
+                            grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 items-center 
+                            border-b border-gray-200 dark:border-gray-700/50 
+                            ${idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/5' : 'bg-transparent'}
+                          `}
+                        >
                           <div className="px-4 py-4 font-bold text-gray-900 dark:text-white">
                             {person.ATLETA}
                           </div>

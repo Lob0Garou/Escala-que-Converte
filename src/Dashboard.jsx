@@ -407,7 +407,7 @@ const Dashboard = () => {
   const MainContent = ({ dailyData, insights, chartData, chartType, theme }) => (
     <main className="flex flex-col lg:flex-row gap-6">
       {/* Coluna da Esquerda: Schedule */}
-      <aside className="lg:w-[480px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+      <aside className="lg:w-[400px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
         <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
         </h3>
@@ -418,31 +418,31 @@ const Dashboard = () => {
             <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                 <tr>
-                  <th scope="col" className="px-3 py-4 font-semibold w-2/5 lg:w-1/2">Atleta</th>
-                  <th scope="col" className="px-3 py-4 font-semibold text-center w-1/5 lg:w-1/6">Entrada</th>
-                  <th scope="col" className="px-3 py-4 font-semibold text-center w-1/5 lg:w-1/6">Intervalo</th>
-                  <th scope="col" className="px-3 py-4 font-semibold text-center w-1/5 lg:w-1/6">Saída</th>
+                  <th scope="col" className="px-2 py-4 font-semibold w-2/5 lg:w-1/2">Atleta</th>
+                  <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Entrada</th>
+                  <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Intervalo</th>
+                  <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Saída</th>
                 </tr>
               </thead>
               <tbody>
                 {dailyData.dailySchedule.map((person, idx) => (
                   <tr key={idx} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 odd:bg-white/50 dark:odd:bg-gray-800/30 even:bg-black/5 dark:even:bg-black/20">
-                    <td className="px-4 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
+                    <td className="px-2 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
                       {person.ATLETA}
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-2 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <LogIn className="w-4 h-4 text-blue-400" />
                         <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-2 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Coffee className="w-4 h-4 text-orange-400" />
                         <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-2 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <LogOut className="w-4 h-4 text-green-400" />
                         <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
@@ -457,14 +457,11 @@ const Dashboard = () => {
       </aside>
 
       {/* Coluna da Direita: Insights + Chart */}
-      <div className="flex-1 flex flex-col gap-6">
-        {/* Insights - Primeiro na coluna da direita */}
-        <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-purple-500" /> Insights
-          </h3>
+      <section className="flex-1 flex flex-col gap-6">
+        {/* Insights lado a lado */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {insights && (
-            <div className="space-y-4">
+            <>
               <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
               {insights.peakFluxoHour &&
                 <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
@@ -472,12 +469,12 @@ const Dashboard = () => {
               {insights.understaffedHour &&
                 <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
               }
-            </div>
+            </>
           )}
-        </section>
+        </div>
 
-        {/* Chart - Segundo na coluna da direita */}
-        <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        {/* Gráfico como destaque principal */}
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
           </h3>
@@ -511,8 +508,8 @@ const Dashboard = () => {
               )}
             </ResponsiveContainer>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   );
 

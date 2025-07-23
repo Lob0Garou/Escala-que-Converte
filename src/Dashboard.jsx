@@ -19,6 +19,7 @@ const Dashboard = () => {
   const [error, setError] = useState({ cupons: null, escala: null });
   const [theme, setTheme] = useState('dark'); // Default theme is now dark
   const [showUploadSection, setShowUploadSection] = useState(false);
+  const [highlightedLine, setHighlightedLine] = useState(null);
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -462,12 +463,30 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {insights && (
             <>
-              <InsightCard category="cupons" title="Pico de Vendas" text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`} />
+              <InsightCard 
+                category="cupons" 
+                title="Pico de Vendas" 
+                text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`}
+                isHighlighted={highlightedLine === 'percentualCupons'}
+                onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
+              />
               {insights.peakFluxoHour &&
-                <InsightCard category="fluxo" title="Maior Fluxo" text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`} />
+                <InsightCard 
+                  category="fluxo" 
+                  title="Maior Fluxo" 
+                  text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
+                  isHighlighted={highlightedLine === 'percentualFluxo'}
+                  onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')} 
+                />
               }
               {insights.understaffedHour &&
-                <InsightCard category="funcionarios" title="Menor Cobertura" text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`} />
+                <InsightCard 
+                  category="funcionarios" 
+                  title="Menor Cobertura" 
+                  text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
+                  isHighlighted={highlightedLine === 'funcionarios'}
+                  onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')} 
+                />
               }
             </>
           )}
@@ -489,9 +508,39 @@ const Dashboard = () => {
                   <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                  <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios" name="Funcionários" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                  <RechartsLine yAxisId="right" type="monotone" dataKey="percentualCupons" name="% Cupons" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                  <RechartsLine yAxisId="right" type="monotone" dataKey="percentualFluxo" name="Fluxo (%)" stroke="#ffc658" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <RechartsLine
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="funcionarios"
+                    name="Funcionários"
+                    stroke="#3b82f6"
+                    strokeWidth={highlightedLine === 'funcionarios' ? 4 : 2}
+                    strokeOpacity={highlightedLine && highlightedLine !== 'funcionarios' ? 0.25 : 1}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <RechartsLine
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="percentualCupons"
+                    name="% Cupons"
+                    stroke="#10b981"
+                    strokeWidth={highlightedLine === 'percentualCupons' ? 4 : 2}
+                    strokeOpacity={highlightedLine && highlightedLine !== 'percentualCupons' ? 0.25 : 1}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <RechartsLine
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="percentualFluxo"
+                    name="Fluxo (%)"
+                    stroke="#ffc658"
+                    strokeWidth={highlightedLine === 'percentualFluxo' ? 4 : 2}
+                    strokeOpacity={highlightedLine && highlightedLine !== 'percentualFluxo' ? 0.25 : 1}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
                 </LineChart>
               ) : (
                 <BarChart data={chartData}>
@@ -685,7 +734,7 @@ const ChartToggleButton = ({ type, current, setType }) => {
     );
 };
 
-const InsightCard = ({ category, title, text }) => {
+const InsightCard = ({ category, title, text, isHighlighted, onClick }) => {
     const colorMap = {
         cupons: {
             wrapper: "bg-green-50 dark:bg-green-900/40 text-green-900 dark:text-green-200",
@@ -704,7 +753,10 @@ const InsightCard = ({ category, title, text }) => {
     const styles = colorMap[category] || colorMap.cupons;
 
     return (
-        <div className={`rounded-lg p-4 ${styles.wrapper}`}>
+        <div 
+            className={`rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-105 ${styles.wrapper} ${isHighlighted ? 'ring-2 ring-white/80 shadow-lg' : ''}`}
+            onClick={onClick}
+        >
             <div className="flex items-start gap-3">
                 <AlertCircle className={`w-5 h-5 ${styles.icon} mt-0.5 flex-shrink-0`} />
                 <div>

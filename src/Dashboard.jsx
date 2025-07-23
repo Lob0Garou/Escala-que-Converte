@@ -409,8 +409,8 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Upload Section - Conditionally rendered */}
-        {showUploadSection && (
+        {/* Upload Section - Visível apenas quando não há dados */}
+        {!dailyData && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <UploadBox 
               type="cupons"
@@ -583,15 +583,6 @@ const Dashboard = () => {
               </section>
             </main>
           </>
-        ) : (
-          /* Empty State */
-          !loading && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
-              <Upload className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Carregue os arquivos para começar</h3>
-              <p className="text-gray-500 dark:text-gray-400">Faça upload dos arquivos de cupons e escala para visualizar os dados.</p>
-            </div>
-          )
         )}
       </div>
     </div>

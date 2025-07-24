@@ -236,13 +236,19 @@ const Dashboard = () => {
       const hour = parseInt(cupom['cod_hora_entrada'], 10);
       const qtdCupons = parseNumber(cupom['qtd_cupom']);
       const qtdFluxo = parseNumber(cupom['qtd_entrante']);
+      
+      // Processar coluna '% Conversao' convertendo texto para número
+      const conversaoTexto = cupom['% Conversao'] || '0%';
+      const percentualConversao = parseFloat(conversaoTexto.replace('%', '').replace(',', '.')) || 0;
+      
       return {
         hora: `${hour}h`,
         funcionarios: staffPerHour[hour] || 0,
         percentualCupons: parseFloat(((qtdCupons / totalCuponsForPercent) * 100).toFixed(1)),
         cupons: qtdCupons,
         percentualFluxo: parseFloat(((qtdFluxo / totalFluxoForPercent) * 100).toFixed(1)),
-        fluxo: qtdFluxo
+        fluxo: qtdFluxo,
+        percentualConversao: percentualConversao
       };
     });
   }, [dailyData, calculateStaffPerHour]);
@@ -250,9 +256,13 @@ const Dashboard = () => {
   const insights = useMemo(() => {
     if (!chartData.length) return null;
 
-    const peakHour = chartData.reduce((max, curr) =>
-      curr.percentualCupons > max.percentualCupons ? curr : max
-    );
+    // Encontrar hora com menor conversão (excluindo valores zero)
+    const validConversionHours = chartData.filter(d => d.percentualConversao > 0);
+    const lowestConversionHour = validConversionHours.length > 0 
+      ? validConversionHours.reduce((min, curr) =>
+          curr.percentualConversao < min.percentualConversao ? curr : min
+        )
+      : null;
     
     const peakFluxoHour = chartData.length > 0 ? chartData.reduce((max, curr) =>
       curr.percentualFluxo > max.percentualFluxo ? curr : max
@@ -267,7 +277,7 @@ const Dashboard = () => {
         )
       : null;
 
-    return { peakHour, peakFluxoHour, understaffedHour };
+    return { lowestConversionHour, peakFluxoHour, understaffedHour };
   }, [chartData]);
 
 
@@ -464,11 +474,11 @@ const Dashboard = () => {
           {insights && (
             <>
               <InsightCard 
-                category="cupons" 
-                title="Pico de Vendas" 
-                text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`}
-                isHighlighted={highlightedLine === 'percentualCupons'}
-                onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
+                category="funcionarios" 
+                title="Menor Conversão" 
+                text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
+                isHighlighted={highlightedLine === 'percentualConversao'}
+                onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')} 
               />
               {insights.peakFluxoHour &&
                 <InsightCard 
@@ -522,11 +532,11 @@ const Dashboard = () => {
                   <RechartsLine
                     yAxisId="right"
                     type="monotone"
-                    dataKey="percentualCupons"
-                    name="% Cupons"
-                    stroke="#10b981"
-                    strokeWidth={highlightedLine === 'percentualCupons' ? 4 : 2}
-                    strokeOpacity={highlightedLine && highlightedLine !== 'percentualCupons' ? 0.25 : 1}
+                    dataKey="percentualConversao"
+                    name="% Conversão"
+                    stroke="#8884d8"
+                    strokeWidth={highlightedLine === 'percentualConversao' ? 4 : 2}
+                    strokeOpacity={highlightedLine && highlightedLine !== 'percentualConversao' ? 0.25 : 1}
                     dot={{ r: 4 }}
                     activeDot={{ r: 6 }}
                   />

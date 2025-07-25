@@ -238,7 +238,9 @@ const Dashboard = () => {
       const qtdFluxo = parseNumber(cupom['qtd_entrante']);
       
       // Processar coluna de conversão dinamicamente
-      const keyConversao = Object.keys(cupom).find(key => key.toLowerCase().includes('conversao'));
+      const keyConversao = Object.keys(cupom).find(key => 
+        key.toLowerCase().replace(/[^a-z]/g, '').includes('conversao')
+      );
       const conversaoTexto = keyConversao ? String(cupom[keyConversao]) : '0%';
       const percentualConversao = parseFloat(conversaoTexto.replace('%', '').replace(',', '.')) || 0;
       

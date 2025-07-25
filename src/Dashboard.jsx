@@ -237,8 +237,9 @@ const Dashboard = () => {
       const qtdCupons = parseNumber(cupom['qtd_cupom']);
       const qtdFluxo = parseNumber(cupom['qtd_entrante']);
       
-      // Processar coluna '% Conversao' convertendo texto para número
-      const conversaoTexto = cupom['% Conversao'] || '0%';
+      // Processar coluna de conversão dinamicamente
+      const keyConversao = Object.keys(cupom).find(key => key.toLowerCase().includes('conversao'));
+      const conversaoTexto = keyConversao ? String(cupom[keyConversao]) : '0%';
       const percentualConversao = parseFloat(conversaoTexto.replace('%', '').replace(',', '.')) || 0;
       
       return {
@@ -581,7 +582,7 @@ const Dashboard = () => {
           <p className="font-semibold text-gray-800 dark:text-gray-100">{label}</p>
           {payload.map((entry, index) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {entry.value}
+              {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2).replace('.', ',') : entry.value}
               {entry.name.includes('%') ? '%' : ''}
             </p>
           ))}

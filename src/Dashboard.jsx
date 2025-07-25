@@ -95,6 +95,36 @@ const Dashboard = () => {
     return parseFloat(value) || 0;
   };
 
+  /**
+   * Find and parse conversion value from Excel data.
+   * Searches for "% Conversão" column and converts decimal to percentage.
+   * @param {Object} cupom - The data row from Excel.
+   * @returns {number} - Conversion percentage or 0 if not found.
+   */
+  const findAndParseConversion = (cupom) => {
+    const conversaoValue = cupom['% Conversão'];
+    if (conversaoValue == null || conversaoValue === '') return 0;
+    
+    const numericValue = parseFloat(conversaoValue);
+    if (isNaN(numericValue)) return 0;
+    
+    // Se o valor é decimal (< 1), multiplica por 100 para converter para porcentagem
+    return numericValue < 1 ? numericValue * 100 : numericValue;
+  };
+
+  /**
+   * Parse flux value from Excel, removing ".0%" suffix.
+   * @param {any} value - The flux value from Excel (e.g., "51800.0%").
+   * @returns {number} - Clean numeric value.
+   */
+  const parseFluxValue = (value) => {
+    if (typeof value === 'string') {
+      // Remove ".0%" suffix and parse as number
+      return parseFloat(value.replace('.0%', '')) || 0;
+    }
+    return parseFloat(value) || 0;
+  };
+
   // --- FILE PROCESSING ---
 
   /**
@@ -159,7 +189,7 @@ const Dashboard = () => {
   // --- DATA COMPUTATION (MEMOIZED) ---
 
   const dailyData = useMemo(() => {
-    if (!cuponsData.length || !escalaData.length) return null;
+    if (!cuponsData.length) return null;
 
     const dayMapping = diasSemana[selectedDay];
     
@@ -169,7 +199,7 @@ const Dashboard = () => {
     
     // Extrair totais diretamente da linha "Total"
     const totalCupons = totalRow ? parseNumber(totalRow['qtd_cupom']) : 0;
-    const totalFluxo = totalRow ? parseNumber(totalRow['qtd_entrante']) : 0;
+    const totalFluxo = totalRow ? parseFluxValue(totalRow['qtd_entrante']) : 0;
     // Filtrar dados para obter apenas as linhas com horas (excluindo "Total" e strings não numéricas)
     const dayCupons = cuponsData.filter(c => 
       c['Dia da Semana'] === dayMapping && 
@@ -178,13 +208,15 @@ const Dashboard = () => {
     );
     console.log('DADOS POR HORA FILTRADOS:', dayCupons);
 
-    const dailySchedule = escalaData
-      .filter(e => e.DIA === selectedDay && e.ENTRADA)
-      .sort((a, b) => {
-        const timeA = a.ENTRADA ? parseInt(a.ENTRADA.split(':')[0], 10) : 99;
-        const timeB = b.ENTRADA ? parseInt(b.ENTRADA.split(':')[0], 10) : 99;
-        return timeA - timeB;
-      });
+    const dailySchedule = escalaData.length > 0 
+      ? escalaData
+          .filter(e => e.DIA === selectedDay && e.ENTRADA)
+          .sort((a, b) => {
+            const timeA = a.ENTRADA ? parseInt(a.ENTRADA.split(':')[0], 10) : 99;
+            const timeB = b.ENTRADA ? parseInt(b.ENTRADA.split(':')[0], 10) : 99;
+            return timeA - timeB;
+          })
+      : [];
       
     const operatingHours = dayCupons.map(c => parseInt(c['cod_hora_entrada'], 10)).sort((a, b) => a - b);
     const minHour = operatingHours.length > 0 ? operatingHours[0] : 10;
@@ -235,14 +267,10 @@ const Dashboard = () => {
     return dailyData.dayCupons.map(cupom => {
       const hour = parseInt(cupom['cod_hora_entrada'], 10);
       const qtdCupons = parseNumber(cupom['qtd_cupom']);
-      const qtdFluxo = parseNumber(cupom['qtd_entrante']);
+      const qtdFluxo = parseFluxValue(cupom['qtd_entrante']);
       
-      // Processar coluna de conversão dinamicamente
-      const keyConversao = Object.keys(cupom).find(key => 
-        key.toLowerCase().replace(/[^a-z]/g, '').includes('conversao')
-      );
-      const conversaoTexto = keyConversao ? String(cupom[keyConversao]) : '0%';
-      const percentualConversao = parseFloat(conversaoTexto.replace('%', '').replace(',', '.')) || 0;
+      // Usar função específica para parsing de conversão
+      const percentualConversao = findAndParseConversion(cupom);
       
       return {
         hora: `${hour}h`,
@@ -664,8 +692,8 @@ const Dashboard = () => {
 
         {/* --- LÓGICA DE RENDERIZAÇÃO UNIFICADA E CORRETA --- */}
 
-        {/* Se NÃO houver dados, mostra apenas a seção de upload */}
-        {!dailyData && (
+        {/* Se NÃO houver dados de cupons, mostra apenas a seção de upload */}
+        {!cuponsData.length && (
           <UploadSection 
             processFile={processFile} 
             dragActive={dragActive} 
@@ -676,8 +704,8 @@ const Dashboard = () => {
           />
         )}
 
-        {/* Se HOUVER dados, mostra os controles e o conteúdo principal */}
-        {dailyData && (
+        {/* Se HOUVER dados de cupons, mostra os controles e o conteúdo principal */}
+        {cuponsData.length > 0 && (
           <>
             <Controls 
               diasAbreviados={['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM']}
@@ -721,12 +749,12 @@ const Dashboard = () => {
           </>
         )}
 
-        {/* Empty State - apenas quando não há dados E não está carregando */}
-        {!dailyData && !loading && (
+        {/* Empty State - apenas quando não há dados de cupons E não está carregando */}
+        {!cuponsData.length && !loading && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
             <Upload className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Carregue os arquivos para começar</h3>
-            <p className="text-gray-500 dark:text-gray-400">Faça upload dos arquivos de cupons e escala para visualizar os dados.</p>
+            <p className="text-gray-500 dark:text-gray-400">Faça upload do arquivo de cupons para visualizar os dados. O arquivo de escala é opcional.</p>
           </div>
         )}
       </div>

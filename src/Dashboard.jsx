@@ -547,8 +547,9 @@ const Dashboard = () => {
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
                   <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 1', 'dataMax + 1']} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 2', 'dataMax + 2']} />
+                  <YAxis yAxisId="conversao" orientation="right" stroke="#8884d8" hide={true} domain={['dataMin - 2', 'dataMax + 2']} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
                   <RechartsLine
@@ -563,7 +564,7 @@ const Dashboard = () => {
                     activeDot={{ r: 6 }}
                   />
                   <RechartsLine
-                    yAxisId="right"
+                    yAxisId="conversao"
                     type="monotone"
                     dataKey="percentualConversao"
                     name="% Conversão"

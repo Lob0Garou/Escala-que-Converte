@@ -299,7 +299,7 @@ const Dashboard = () => {
         const insightsData = [
           {},
           { 'Hora': '--- INSIGHTS ---' },
-          { 'Hora': 'Pico de Vendas', 'Funcionários': insights.peakHour.hora, 'Percentual Cupons (%)': `${insights.peakHour.percentualCupons}%`, 'Quantidade Cupons': insights.peakHour.cupons },
+          { 'Hora': 'Menor Conversão', 'Funcionários': insights.lowestConversionHour ? insights.lowestConversionHour.hora : 'N/A', 'Percentual Cupons (%)': insights.lowestConversionHour ? `${insights.lowestConversionHour.percentualConversao}%` : 'N/A' },
           { 'Hora': 'Menor Cobertura', 'Funcionários': insights.understaffedHour ? `${insights.understaffedHour.funcionarios} funcionários` : 'N/A', 'Percentual Cupons (%)': insights.understaffedHour ? insights.understaffedHour.hora : 'N/A' }
         ];
 
@@ -473,13 +473,15 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {insights && (
             <>
-              <InsightCard 
-                category="funcionarios" 
-                title="Menor Conversão" 
-                text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
-                isHighlighted={highlightedLine === 'percentualConversao'}
-                onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')} 
-              />
+              {insights.lowestConversionHour &&
+                <InsightCard 
+                  category="funcionarios" 
+                  title="Menor Conversão" 
+                  text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
+                  isHighlighted={highlightedLine === 'percentualConversao'}
+                  onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')} 
+                />
+              }
               {insights.peakFluxoHour &&
                 <InsightCard 
                   category="fluxo" 

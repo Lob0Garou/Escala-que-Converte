@@ -501,50 +501,53 @@ const Dashboard = () => {
 
       {/* Coluna da Direita: Insights + Chart */}
       <section className="flex-1 flex flex-col gap-6">
-        {/* Insights lado a lado */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Insights compactos e relevantes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {insights && (
             <>
-              <InsightCard 
-                category="cupons" 
-                title="Pico de Vendas" 
-                text={`${insights.peakHour.hora} com ${insights.peakHour.percentualCupons}% do total`}
-                isHighlighted={highlightedLine === 'percentualCupons'}
-                onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
-              />
-              {insights.peakFluxoHour &&
-                <InsightCard 
-                  category="fluxo" 
-                  title="Maior Fluxo" 
-                  text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
-                  isHighlighted={highlightedLine === 'percentualFluxo'}
-                  onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')} 
-                />
-              }
-              {insights.understaffedHour &&
-                <InsightCard 
-                  category="funcionarios" 
-                  title="Menor Cobertura" 
-                  text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
-                  isHighlighted={highlightedLine === 'funcionarios'}
-                  onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')} 
-                />
-              }
-              {insights.lowestConversionHour &&
-                <InsightCard 
-                  category="conversao" 
-                  title="Menor Conversão" 
-                  text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.conversao}% de conversão`}
-                  isHighlighted={highlightedLine === 'conversao'}
-                  onClick={() => setHighlightedLine(prev => prev === 'conversao' ? null : 'conversao')} 
-                />
-              }
+              {activeChartView === 'fluxo' ? (
+                <>
+                  <InsightCard 
+                    category="cupons" 
+                    title="Pico de Vendas" 
+                    text={`${insights.peakHour.hora} - ${insights.peakHour.percentualCupons}%`}
+                    isHighlighted={highlightedLine === 'percentualCupons'}
+                    onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
+                  />
+                  {insights.understaffedHour &&
+                    <InsightCard 
+                      category="funcionarios" 
+                      title="Menor Cobertura" 
+                      text={`${insights.understaffedHour.hora} - ${insights.understaffedHour.funcionarios} funcionário(s)`}
+                      isHighlighted={highlightedLine === 'funcionarios'}
+                      onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')} 
+                    />
+                  }
+                </>
+              ) : (
+                <>
+                  <InsightCard 
+                    category="conversao" 
+                    title="Menor Conversão" 
+                    text={`${insights.lowestConversionHour?.hora || 'N/A'} - ${insights.lowestConversionHour?.conversao || 0}%`}
+                    isHighlighted={highlightedLine === 'conversao'}
+                    onClick={() => setHighlightedLine(prev => prev === 'conversao' ? null : 'conversao')} 
+                  />
+                  <InsightCard 
+                    category="cupons" 
+                    title="Pico de Vendas" 
+                    text={`${insights.peakHour.hora} - ${insights.peakHour.percentualCupons}%`}
+                    isHighlighted={highlightedLine === 'percentualCupons'}
+                    onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
+                  />
+                </>
+              )}
             </>
           )}
         </div>
 
         {/* Gráficos com Transição */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col gap-4 min-h-[600px]">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col gap-4 min-h-[480px]">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-500" /> 
             {activeChartView === 'fluxo' ? 'Análise de Cobertura e Fluxo' : 'Análise de Conversão e Cupons'} - {selectedDay}
@@ -882,14 +885,14 @@ const InsightCard = ({ category, title, text, isHighlighted, onClick }) => {
 
     return (
         <div 
-            className={`rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-105 ${styles.wrapper} ${isHighlighted ? 'ring-2 ring-white/80 shadow-lg' : ''}`}
+            className={`rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-105 ${styles.wrapper} ${isHighlighted ? 'ring-2 ring-white/80 shadow-lg' : ''}`}
             onClick={onClick}
         >
-            <div className="flex items-start gap-3">
-                <AlertCircle className={`w-5 h-5 ${styles.icon} mt-0.5 flex-shrink-0`} />
-                <div>
-                    <p className="text-sm font-semibold">{title}</p>
-                    <p className="text-sm">{text}</p>
+            <div className="flex items-center gap-2">
+                <AlertCircle className={`w-4 h-4 ${styles.icon} flex-shrink-0`} />
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold">{title}</p>
+                    <p className="text-xs">{text}</p>
                 </div>
             </div>
         </div>

@@ -544,7 +544,7 @@ const Dashboard = () => {
         </div>
 
         {/* Gráficos com Transição */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col gap-4">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col gap-4 min-h-[600px]">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-500" /> 
             {activeChartView === 'fluxo' ? 'Análise de Cobertura e Fluxo' : 'Análise de Conversão e Cupons'} - {selectedDay}
@@ -557,11 +557,11 @@ const Dashboard = () => {
                 ? 'opacity-100 translate-y-0 pointer-events-auto' 
                 : 'opacity-0 translate-y-4 pointer-events-none'
             }`}>
-              <div className="flex flex-col gap-4 h-full">
-                {/* Gráfico Superior: Funcionários vs Fluxo */}
-                <div className="flex-1">
+              <div className="flex flex-col h-full">
+                {/* Gráfico Principal: Funcionários vs Fluxo */}
+                <div className="flex-1 flex flex-col">
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">Cobertura de Funcionários vs Participação do Fluxo</h4>
-                  <div id="chart-top-fluxo" className="w-full h-48">
+                  <div id="chart-top-fluxo" className="flex-1 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       {chartType === 'line' ? (
                         <LineChart data={chartData}>
@@ -626,7 +626,7 @@ const Dashboard = () => {
                 {/* Gráfico Superior: Conversão vs Cupons */}
                 <div className="flex-1">
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">Taxa de Conversão vs Participação de Cupons</h4>
-                  <div id="chart-top-conversao" className="w-full h-48">
+                  <div id="chart-top-conversao" className="w-full h-full">
                     <ResponsiveContainer width="100%" height="100%">
                       {chartType === 'line' ? (
                         <LineChart data={chartData}>

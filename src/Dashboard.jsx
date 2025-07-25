@@ -501,18 +501,18 @@ const Dashboard = () => {
 
       {/* Coluna da Direita: Insights + Chart */}
       <section className="flex-1 flex flex-col gap-6">
-        {/* Insights compactos e relevantes */}
+        {/* Insights compactos e relevantes - alinhados com o gráfico visível */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {insights && (
             <>
               {activeChartView === 'fluxo' ? (
                 <>
                   <InsightCard 
-                    category="cupons" 
-                    title="Pico de Vendas" 
-                    text={`${insights.peakHour.hora} - ${insights.peakHour.percentualCupons}%`}
-                    isHighlighted={highlightedLine === 'percentualCupons'}
-                    onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
+                    category="fluxo" 
+                    title="Maior Fluxo" 
+                    text={`${insights.peakFluxoHour?.hora || 'N/A'} - ${insights.peakFluxoHour?.percentualFluxo || 0}%`}
+                    isHighlighted={highlightedLine === 'percentualFluxo'}
+                    onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')} 
                   />
                   {insights.understaffedHour &&
                     <InsightCard 
@@ -527,18 +527,18 @@ const Dashboard = () => {
               ) : (
                 <>
                   <InsightCard 
-                    category="conversao" 
-                    title="Menor Conversão" 
-                    text={`${insights.lowestConversionHour?.hora || 'N/A'} - ${insights.lowestConversionHour?.conversao || 0}%`}
-                    isHighlighted={highlightedLine === 'conversao'}
-                    onClick={() => setHighlightedLine(prev => prev === 'conversao' ? null : 'conversao')} 
-                  />
-                  <InsightCard 
                     category="cupons" 
                     title="Pico de Vendas" 
                     text={`${insights.peakHour.hora} - ${insights.peakHour.percentualCupons}%`}
                     isHighlighted={highlightedLine === 'percentualCupons'}
                     onClick={() => setHighlightedLine(prev => prev === 'percentualCupons' ? null : 'percentualCupons')} 
+                  />
+                  <InsightCard 
+                    category="conversao" 
+                    title="Menor Conversão" 
+                    text={`${insights.lowestConversionHour?.hora || 'N/A'} - ${insights.lowestConversionHour?.conversao || 0}%`}
+                    isHighlighted={highlightedLine === 'conversao'}
+                    onClick={() => setHighlightedLine(prev => prev === 'conversao' ? null : 'conversao')} 
                   />
                 </>
               )}

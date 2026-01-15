@@ -21,6 +21,7 @@ const Dashboard = () => {
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [highlightedLine, setHighlightedLine] = useState(null);
   const [escalaManualMode, setEscalaManualMode] = useState(false);
+  const [manualEscalaRows, setManualEscalaRows] = useState([]);
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -185,6 +186,24 @@ const Dashboard = () => {
       await processFile(e.dataTransfer.files[0], type);
     }
   }, [processFile]);
+
+  // --- MANUAL ENTRY HANDLERS ---
+  const addManualRow = useCallback(() => {
+    setManualEscalaRows(prev => [
+      ...prev,
+      { id: Date.now(), nome: '', entrada: '', intervalo: '', saida: '', saidaDiaSeguinte: false }
+    ]);
+  }, []);
+
+  const updateManualRow = useCallback((id, field, value) => {
+    setManualEscalaRows(prev => prev.map(row =>
+      row.id === id ? { ...row, [field]: value } : row
+    ));
+  }, []);
+
+  const removeManualRow = useCallback((id) => {
+    setManualEscalaRows(prev => prev.filter(row => row.id !== id));
+  }, []);
 
 
   // --- DATA COMPUTATION (MEMOIZED) ---
@@ -367,7 +386,7 @@ const Dashboard = () => {
     </div>
   );
 
-  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, escalaData, error, escalaManualMode, setEscalaManualMode }) => (
+  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, escalaData, error, escalaManualMode, setEscalaManualMode, manualEscalaRows, addManualRow, updateManualRow, removeManualRow }) => (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <UploadBox
         type="cupons"
@@ -425,8 +444,91 @@ const Dashboard = () => {
               )}
             </div>
           ) : (
-            <div className="flex-1 h-full min-h-[140px] bg-gray-50 dark:bg-gray-700/30 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center p-4">
-              <p className="text-gray-400 dark:text-gray-500 text-sm font-medium">Entrada Manual (Em breve)</p>
+            <div className="flex-1 h-full min-h-[140px] bg-white dark:bg-gray-800 rounded-lg flex flex-col">
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                  <thead className="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2">Atleta</th>
+                      <th className="px-3 py-2">Entrada</th>
+                      <th className="px-3 py-2">Inter</th>
+                      <th className="px-3 py-2">Saída</th>
+                      <th className="px-3 py-2 text-center">+1d</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualEscalaRows.map(row => (
+                      <tr key={row.id} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td className="px-2 py-2">
+                          <input
+                            type="text"
+                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Nome"
+                            value={row.nome}
+                            onChange={(e) => updateManualRow(row.id, 'nome', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="time"
+                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
+                            value={row.entrada}
+                            onChange={(e) => updateManualRow(row.id, 'entrada', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="time"
+                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
+                            value={row.intervalo}
+                            onChange={(e) => updateManualRow(row.id, 'intervalo', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <input
+                            type="time"
+                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
+                            value={row.saida}
+                            onChange={(e) => updateManualRow(row.id, 'saida', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                            checked={row.saidaDiaSeguinte}
+                            onChange={(e) => updateManualRow(row.id, 'saidaDiaSeguinte', e.target.checked)}
+                          />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            onClick={() => removeManualRow(row.id)}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4 rotate-180" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {manualEscalaRows.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="px-6 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
+                          Nenhum atleta adicionado
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={addManualRow}
+                  className="w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Users className="w-4 h-4" /> Adicionar Atleta
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -747,6 +849,10 @@ const Dashboard = () => {
             error={error}
             escalaManualMode={escalaManualMode}
             setEscalaManualMode={setEscalaManualMode}
+            manualEscalaRows={manualEscalaRows}
+            addManualRow={addManualRow}
+            updateManualRow={updateManualRow}
+            removeManualRow={removeManualRow}
           />
         )}
 
@@ -784,6 +890,10 @@ const Dashboard = () => {
                 error={error}
                 escalaManualMode={escalaManualMode}
                 setEscalaManualMode={setEscalaManualMode}
+                manualEscalaRows={manualEscalaRows}
+                addManualRow={addManualRow}
+                updateManualRow={updateManualRow}
+                removeManualRow={removeManualRow}
               />
             )}
 

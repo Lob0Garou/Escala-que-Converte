@@ -370,7 +370,7 @@ const Dashboard = () => {
     <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <UploadBox 
         type="cupons"
-        title="Arquivo de Cupons"
+        title="FLUXO"
         onUpload={handleFileUpload}
         onDrag={handleDrag}
         onDrop={handleDrop}
@@ -380,7 +380,7 @@ const Dashboard = () => {
       />
       <UploadBox 
         type="escala"
-        title="Arquivo de Escala"
+        title="ESCALA"
         onUpload={handleFileUpload}
         onDrag={handleDrag}
         onDrop={handleDrop}
@@ -755,7 +755,7 @@ const Dashboard = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
             <Upload className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Carregue os arquivos para começar</h3>
-            <p className="text-gray-500 dark:text-gray-400">Faça upload do arquivo de cupons para visualizar os dados. O arquivo de escala é opcional.</p>
+            <p className="text-gray-500 dark:text-gray-400">Faça upload do arquivo FLUXO para visualizar os dados. O arquivo ESCALA é opcional.</p>
           </div>
         )}
       </div>

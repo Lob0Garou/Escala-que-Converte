@@ -22,6 +22,7 @@ const Dashboard = () => {
   const [highlightedLine, setHighlightedLine] = useState(null);
   const [escalaManualMode, setEscalaManualMode] = useState(false);
   const [manualEscalaRows, setManualEscalaRows] = useState([]);
+  const [activeTab, setActiveTab] = useState('cobertura');
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -605,7 +606,7 @@ const Dashboard = () => {
     </section>
   );
 
-  const MainContent = ({ dailyData, insights, chartData, chartType, theme }) => (
+  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab }) => (
     <main className="flex flex-col lg:flex-row gap-6">
       {/* Coluna da Esquerda: Schedule */}
       <aside className="lg:w-[400px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
@@ -659,108 +660,141 @@ const Dashboard = () => {
 
       {/* Coluna da Direita: Insights + Chart */}
       <section className="flex-1 flex flex-col gap-6">
-        {/* Insights lado a lado */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {insights && (
-            <>
-              {insights.lowestConversionHour &&
-                <InsightCard
-                  category="funcionarios"
-                  title="Menor Conversão"
-                  text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
-                  isHighlighted={highlightedLine === 'percentualConversao'}
-                  onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')}
-                />
-              }
-              {insights.peakFluxoHour &&
-                <InsightCard
-                  category="fluxo"
-                  title="Maior Fluxo"
-                  text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
-                  isHighlighted={highlightedLine === 'percentualFluxo'}
-                  onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')}
-                />
-              }
-              {insights.understaffedHour &&
-                <InsightCard
-                  category="funcionarios"
-                  title="Menor Cobertura"
-                  text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
-                  isHighlighted={highlightedLine === 'funcionarios'}
-                  onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')}
-                />
-              }
-            </>
-          )}
+
+        {/* Tab Navigation */}
+        <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => setActiveTab('cobertura')}
+            className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'cobertura' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          >
+            Cobertura & Fluxo
+            {activeTab === 'cobertura' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
+          </button>
+          <button
+            onClick={() => setActiveTab('conversao')}
+            className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'conversao' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          >
+            Conversão Atual
+            {activeTab === 'conversao' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
+          </button>
         </div>
 
-        {/* Gráfico como destaque principal */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
-          </h3>
-
-          <div id="chart-container" className="w-full h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartType === 'line' ? (
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                  <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 1', 'dataMax + 1']} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 2', 'dataMax + 2']} />
-                  <YAxis yAxisId="conversao" orientation="right" stroke="#8884d8" hide={true} domain={['dataMin - 2', 'dataMax + 2']} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                  <RechartsLine
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="funcionarios"
-                    name="Funcionários"
-                    stroke="#3b82f6"
-                    strokeWidth={highlightedLine === 'funcionarios' ? 4 : 2}
-                    strokeOpacity={highlightedLine && highlightedLine !== 'funcionarios' ? 0.25 : 1}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                  <RechartsLine
-                    yAxisId="conversao"
-                    type="monotone"
-                    dataKey="percentualConversao"
-                    name="% Conversão"
-                    stroke="#8884d8"
-                    strokeWidth={highlightedLine === 'percentualConversao' ? 4 : 2}
-                    strokeOpacity={highlightedLine && highlightedLine !== 'percentualConversao' ? 0.25 : 1}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                  <RechartsLine
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="percentualFluxo"
-                    name="Fluxo (%)"
-                    stroke="#ffc658"
-                    strokeWidth={highlightedLine === 'percentualFluxo' ? 4 : 2}
-                    strokeOpacity={highlightedLine && highlightedLine !== 'percentualFluxo' ? 0.25 : 1}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              ) : (
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                  <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                  <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
-                  <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
-                  <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
-                </BarChart>
+        {activeTab === 'cobertura' && (
+          <>
+            {/* Insights lado a lado */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {insights && (
+                <>
+                  {insights.lowestConversionHour &&
+                    <InsightCard
+                      category="funcionarios"
+                      title="Menor Conversão"
+                      text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
+                      isHighlighted={highlightedLine === 'percentualConversao'}
+                      onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')}
+                    />
+                  }
+                  {insights.peakFluxoHour &&
+                    <InsightCard
+                      category="fluxo"
+                      title="Maior Fluxo"
+                      text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
+                      isHighlighted={highlightedLine === 'percentualFluxo'}
+                      onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')}
+                    />
+                  }
+                  {insights.understaffedHour &&
+                    <InsightCard
+                      category="funcionarios"
+                      title="Menor Cobertura"
+                      text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
+                      isHighlighted={highlightedLine === 'funcionarios'}
+                      onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')}
+                    />
+                  }
+                </>
               )}
-            </ResponsiveContainer>
+            </div>
+
+            {/* Gráfico como destaque principal */}
+            <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
+              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
+              </h3>
+
+              <div id="chart-container" className="w-full h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  {chartType === 'line' ? (
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                      <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                      <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 1', 'dataMax + 1']} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 2', 'dataMax + 2']} />
+                      <YAxis yAxisId="conversao" orientation="right" stroke="#8884d8" hide={true} domain={['dataMin - 2', 'dataMax + 2']} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                      <RechartsLine
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="funcionarios"
+                        name="Funcionários"
+                        stroke="#3b82f6"
+                        strokeWidth={highlightedLine === 'funcionarios' ? 4 : 2}
+                        strokeOpacity={highlightedLine && highlightedLine !== 'funcionarios' ? 0.25 : 1}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <RechartsLine
+                        yAxisId="conversao"
+                        type="monotone"
+                        dataKey="percentualConversao"
+                        name="% Conversão"
+                        stroke="#8884d8"
+                        strokeWidth={highlightedLine === 'percentualConversao' ? 4 : 2}
+                        strokeOpacity={highlightedLine && highlightedLine !== 'percentualConversao' ? 0.25 : 1}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <RechartsLine
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="percentualFluxo"
+                        name="Fluxo (%)"
+                        stroke="#ffc658"
+                        strokeWidth={highlightedLine === 'percentualFluxo' ? 4 : 2}
+                        strokeOpacity={highlightedLine && highlightedLine !== 'percentualFluxo' ? 0.25 : 1}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  ) : (
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                      <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                      <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                      <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
+                      <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
+                      <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
+                    </BarChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'conversao' && (
+          <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col items-center justify-center min-h-[400px]">
+            <BarChart3 className="w-16 h-16 text-gray-300 dark:text-gray-600 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Conversão Atual</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
+              Em breve: Análise detalhada da taxa de conversão em relação ao fluxo de clientes por hora.
+            </p>
           </div>
-        </div>
+        )}
       </section>
     </main>
   );
@@ -917,6 +951,8 @@ const Dashboard = () => {
               chartData={chartData}
               chartType={chartType}
               theme={theme}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
             />
           </>
         )}

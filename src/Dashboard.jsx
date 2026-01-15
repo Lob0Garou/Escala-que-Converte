@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [theme, setTheme] = useState('dark'); // Default theme is now dark
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [highlightedLine, setHighlightedLine] = useState(null);
+  const [escalaManualMode, setEscalaManualMode] = useState(false);
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -104,10 +105,10 @@ const Dashboard = () => {
   const findAndParseConversion = (cupom) => {
     const conversaoValue = cupom['% Conversão'];
     if (conversaoValue == null || conversaoValue === '') return 0;
-    
+
     const numericValue = parseFloat(conversaoValue);
     if (isNaN(numericValue)) return 0;
-    
+
     // Se o valor é decimal (< 1), multiplica por 100 para converter para porcentagem
     return numericValue < 1 ? numericValue * 100 : numericValue;
   };
@@ -192,32 +193,32 @@ const Dashboard = () => {
     if (!cuponsData.length) return null;
 
     const dayMapping = diasSemana[selectedDay];
-    
+
     // Encontrar a linha de "Total" para o dia selecionado
     const totalRow = cuponsData.find(c => c['Dia da Semana'] === dayMapping && c['cod_hora_entrada'] === 'Total');
     console.log('LINHA DE TOTAL ENCONTRADA:', totalRow);
-    
+
     // Extrair totais diretamente da linha "Total"
     const totalCupons = totalRow ? parseNumber(totalRow['qtd_cupom']) : 0;
     const totalFluxo = totalRow ? parseFluxValue(totalRow['qtd_entrante']) : 0;
     // Filtrar dados para obter apenas as linhas com horas (excluindo "Total" e strings não numéricas)
-    const dayCupons = cuponsData.filter(c => 
-      c['Dia da Semana'] === dayMapping && 
-      c['cod_hora_entrada'] !== 'Total' && 
+    const dayCupons = cuponsData.filter(c =>
+      c['Dia da Semana'] === dayMapping &&
+      c['cod_hora_entrada'] !== 'Total' &&
       !isNaN(parseInt(c['cod_hora_entrada'], 10))
     );
     console.log('DADOS POR HORA FILTRADOS:', dayCupons);
 
-    const dailySchedule = escalaData.length > 0 
+    const dailySchedule = escalaData.length > 0
       ? escalaData
-          .filter(e => e.DIA === selectedDay && e.ENTRADA)
-          .sort((a, b) => {
-            const timeA = a.ENTRADA ? parseInt(a.ENTRADA.split(':')[0], 10) : 99;
-            const timeB = b.ENTRADA ? parseInt(b.ENTRADA.split(':')[0], 10) : 99;
-            return timeA - timeB;
-          })
+        .filter(e => e.DIA === selectedDay && e.ENTRADA)
+        .sort((a, b) => {
+          const timeA = a.ENTRADA ? parseInt(a.ENTRADA.split(':')[0], 10) : 99;
+          const timeB = b.ENTRADA ? parseInt(b.ENTRADA.split(':')[0], 10) : 99;
+          return timeA - timeB;
+        })
       : [];
-      
+
     const operatingHours = dayCupons.map(c => parseInt(c['cod_hora_entrada'], 10)).sort((a, b) => a - b);
     const minHour = operatingHours.length > 0 ? operatingHours[0] : 10;
     const maxHour = operatingHours.length > 0 ? operatingHours[operatingHours.length - 1] : 23;
@@ -241,12 +242,12 @@ const Dashboard = () => {
       staffCount[hour] = 0;
       dayData.forEach(person => {
         if (!person.ENTRADA || !person.SAIDA) return;
-        
+
         const entradaHour = parseInt(person.ENTRADA.split(':')[0], 10);
         let saidaHour = parseInt(person.SAIDA.split(':')[0], 10);
-        
+
         if (saidaHour < entradaHour) saidaHour += 24;
-        
+
         const interHour = person.INTER ? parseInt(person.INTER.split(':')[0], 10) : -1;
 
         if (hour >= entradaHour && hour < saidaHour && hour !== interHour) {
@@ -268,10 +269,10 @@ const Dashboard = () => {
       const hour = parseInt(cupom['cod_hora_entrada'], 10);
       const qtdCupons = parseNumber(cupom['qtd_cupom']);
       const qtdFluxo = parseFluxValue(cupom['qtd_entrante']);
-      
+
       // Usar função específica para parsing de conversão
       const percentualConversao = findAndParseConversion(cupom);
-      
+
       return {
         hora: `${hour}h`,
         funcionarios: staffPerHour[hour] || 0,
@@ -289,23 +290,23 @@ const Dashboard = () => {
 
     // Encontrar hora com menor conversão (excluindo valores zero)
     const validConversionHours = chartData.filter(d => d.percentualConversao > 0);
-    const lowestConversionHour = validConversionHours.length > 0 
+    const lowestConversionHour = validConversionHours.length > 0
       ? validConversionHours.reduce((min, curr) =>
-          curr.percentualConversao < min.percentualConversao ? curr : min
-        )
+        curr.percentualConversao < min.percentualConversao ? curr : min
+      )
       : null;
-    
+
     const peakFluxoHour = chartData.length > 0 ? chartData.reduce((max, curr) =>
       curr.percentualFluxo > max.percentualFluxo ? curr : max
     ) : null;
-    
+
     // Filter out the 22:00 hour for understaffed calculation
     const relevantHoursForStaffing = chartData.filter(d => parseInt(d.hora.replace('h', '')) < 22);
 
     const understaffedHour = relevantHoursForStaffing.length > 0
       ? relevantHoursForStaffing.reduce((min, curr) =>
-          curr.funcionarios < min.funcionarios ? curr : min, relevantHoursForStaffing[0]
-        )
+        curr.funcionarios < min.funcionarios ? curr : min, relevantHoursForStaffing[0]
+      )
       : null;
 
     return { lowestConversionHour, peakFluxoHour, understaffedHour };
@@ -317,33 +318,33 @@ const Dashboard = () => {
     if (!chartData.length || !insights) return;
 
     try {
-        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs');
-        const exportableChartData = chartData.map(item => ({
-          'Hora': item.hora,
-          'Funcionários': item.funcionarios,
-          'Percentual Cupons (%)': item.percentualCupons,
-          'Quantidade Cupons': item.cupons,
-          'Percentual Fluxo (%)': item.percentualFluxo,
-          'Quantidade Fluxo': item.fluxo
-        }));
+      const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs');
+      const exportableChartData = chartData.map(item => ({
+        'Hora': item.hora,
+        'Funcionários': item.funcionarios,
+        'Percentual Cupons (%)': item.percentualCupons,
+        'Quantidade Cupons': item.cupons,
+        'Percentual Fluxo (%)': item.percentualFluxo,
+        'Quantidade Fluxo': item.fluxo
+      }));
 
-        const insightsData = [
-          {},
-          { 'Hora': '--- INSIGHTS ---' },
-          { 'Hora': 'Menor Conversão', 'Funcionários': insights.lowestConversionHour ? insights.lowestConversionHour.hora : 'N/A', 'Percentual Cupons (%)': insights.lowestConversionHour ? `${insights.lowestConversionHour.percentualConversao}%` : 'N/A' },
-          { 'Hora': 'Menor Cobertura', 'Funcionários': insights.understaffedHour ? `${insights.understaffedHour.funcionarios} funcionários` : 'N/A', 'Percentual Cupons (%)': insights.understaffedHour ? insights.understaffedHour.hora : 'N/A' }
-        ];
+      const insightsData = [
+        {},
+        { 'Hora': '--- INSIGHTS ---' },
+        { 'Hora': 'Menor Conversão', 'Funcionários': insights.lowestConversionHour ? insights.lowestConversionHour.hora : 'N/A', 'Percentual Cupons (%)': insights.lowestConversionHour ? `${insights.lowestConversionHour.percentualConversao}%` : 'N/A' },
+        { 'Hora': 'Menor Cobertura', 'Funcionários': insights.understaffedHour ? `${insights.understaffedHour.funcionarios} funcionários` : 'N/A', 'Percentual Cupons (%)': insights.understaffedHour ? insights.understaffedHour.hora : 'N/A' }
+      ];
 
-        const ws = XLSX.utils.json_to_sheet(exportableChartData.concat(insightsData));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, `Análise ${selectedDay}`);
-        XLSX.writeFile(wb, `analise-${selectedDay.toLowerCase()}.xlsx`);
+      const ws = XLSX.utils.json_to_sheet(exportableChartData.concat(insightsData));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `Análise ${selectedDay}`);
+      XLSX.writeFile(wb, `analise-${selectedDay.toLowerCase()}.xlsx`);
     } catch (err) {
-        console.error("Failed to export data:", err);
-        setError(prev => ({...prev, export: 'Falha ao exportar dados.'}));
+      console.error("Failed to export data:", err);
+      setError(prev => ({ ...prev, export: 'Falha ao exportar dados.' }));
     }
   };
-  
+
   // --- RENDER COMPONENTS ---
 
   const Header = () => (
@@ -366,9 +367,9 @@ const Dashboard = () => {
     </div>
   );
 
-  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, escalaData, error }) => (
+  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, escalaData, error, escalaManualMode, setEscalaManualMode }) => (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      <UploadBox 
+      <UploadBox
         type="cupons"
         title="FLUXO"
         onUpload={handleFileUpload}
@@ -378,16 +379,58 @@ const Dashboard = () => {
         data={cuponsData}
         errorState={error.cupons}
       />
-      <UploadBox 
-        type="escala"
-        title="ESCALA"
-        onUpload={handleFileUpload}
-        onDrag={handleDrag}
-        onDrop={handleDrop}
-        dragActiveState={dragActive.escala}
-        data={escalaData}
-        errorState={error.escala}
-      />
+      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between px-6 pt-6 mb-2">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">ESCALA</h3>
+          <div className="flex gap-2 bg-gray-100 dark:bg-gray-700/50 p-1 rounded-lg">
+            <button
+              onClick={() => setEscalaManualMode(false)}
+              className={`text-xs px-3 py-1.5 rounded-md transition-all font-medium ${!escalaManualMode ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+            >
+              Arquivo
+            </button>
+            <button
+              onClick={() => setEscalaManualMode(true)}
+              className={`text-xs px-3 py-1.5 rounded-md transition-all font-medium ${escalaManualMode ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+            >
+              Manual
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 px-6 pb-6">
+          {!escalaManualMode ? (
+            <div
+              className={`border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors cursor-pointer ${dragActive.escala ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-700' : ''}`}
+              onDragEnter={(e) => setDragActive(prev => ({ ...prev, escala: true }))}
+              onDragLeave={(e) => setDragActive(prev => ({ ...prev, escala: false }))}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(prev => ({ ...prev, escala: false }));
+                if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0], 'escala');
+              }}
+            >
+              <label className="block cursor-pointer">
+                <Upload className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Arraste aqui ou clique para selecionar</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">Arquivo .xlsx ou .xls</p>
+                <input type="file" accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0], 'escala')} className="hidden" />
+              </label>
+              {escalaData.length > 0 && !error.escala && (
+                <p className="mt-3 text-sm text-green-600 font-medium">✓ {escalaData.length} registros carregados</p>
+              )}
+              {error.escala && (
+                <p className="mt-3 text-sm text-red-600 font-medium">✗ {error.escala}</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex-1 h-full min-h-[140px] bg-gray-50 dark:bg-gray-700/30 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center p-4">
+              <p className="text-gray-400 dark:text-gray-500 text-sm font-medium">Entrada Manual (Em breve)</p>
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 
@@ -406,15 +449,15 @@ const Dashboard = () => {
                 'SAB': 'SÁBADO',
                 'DOM': 'DOMINGO'
               }[day];
-              
+
               return (
                 <button
                   key={day}
                   onClick={() => setSelectedDay(fullDay)}
                   className={`
                     py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200 whitespace-nowrap
-                    ${selectedDay === fullDay 
-                      ? 'bg-blue-500 text-white shadow-md' 
+                    ${selectedDay === fullDay
+                      ? 'bg-blue-500 text-white shadow-md'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }
                   `}
@@ -426,21 +469,21 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-            <ChartToggleButton type="line" current={chartType} setType={setChartType} />
-            <ChartToggleButton type="bar" current={chartType} setType={setChartType} />
-            <button onClick={exportData} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">
-                <Download className="w-4 h-4" /> Exportar
-            </button>
-            <button 
-              onClick={() => setShowUploadSection(prev => !prev)}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Alterar Ficheiros</span>
-            </button>
-            <button onClick={toggleTheme} className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            </button>
+          <ChartToggleButton type="line" current={chartType} setType={setChartType} />
+          <ChartToggleButton type="bar" current={chartType} setType={setChartType} />
+          <button onClick={exportData} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">
+            <Download className="w-4 h-4" /> Exportar
+          </button>
+          <button
+            onClick={() => setShowUploadSection(prev => !prev)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Alterar Ficheiros</span>
+          </button>
+          <button onClick={toggleTheme} className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+          </button>
         </div>
       </div>
     </section>
@@ -505,30 +548,30 @@ const Dashboard = () => {
           {insights && (
             <>
               {insights.lowestConversionHour &&
-                <InsightCard 
-                  category="funcionarios" 
-                  title="Menor Conversão" 
+                <InsightCard
+                  category="funcionarios"
+                  title="Menor Conversão"
                   text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
                   isHighlighted={highlightedLine === 'percentualConversao'}
-                  onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')} 
+                  onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')}
                 />
               }
               {insights.peakFluxoHour &&
-                <InsightCard 
-                  category="fluxo" 
-                  title="Maior Fluxo" 
+                <InsightCard
+                  category="fluxo"
+                  title="Maior Fluxo"
                   text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
                   isHighlighted={highlightedLine === 'percentualFluxo'}
-                  onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')} 
+                  onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')}
                 />
               }
               {insights.understaffedHour &&
-                <InsightCard 
-                  category="funcionarios" 
-                  title="Menor Cobertura" 
+                <InsightCard
+                  category="funcionarios"
+                  title="Menor Cobertura"
                   text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
                   isHighlighted={highlightedLine === 'funcionarios'}
-                  onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')} 
+                  onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')}
                 />
               }
             </>
@@ -540,7 +583,7 @@ const Dashboard = () => {
           <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
           </h3>
-          
+
           <div id="chart-container" className="w-full h-96">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'line' ? (
@@ -622,7 +665,7 @@ const Dashboard = () => {
     }
     return null;
   };
-  
+
   const UploadBox = ({ type, title, onUpload, onDrag, onDrop, dragActiveState, data, errorState }) => (
     <div
       className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-all ${dragActiveState ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-700' : ''}`}
@@ -685,7 +728,7 @@ const Dashboard = () => {
           background-color: #718096;
         }
       `}</style>
-      
+
       <div className="max-w-7xl mx-auto">
         <Header />
 
@@ -695,20 +738,22 @@ const Dashboard = () => {
 
         {/* Se NÃO houver dados de cupons, mostra apenas a seção de upload */}
         {!cuponsData.length && (
-          <UploadSection 
-            processFile={processFile} 
-            dragActive={dragActive} 
+          <UploadSection
+            processFile={processFile}
+            dragActive={dragActive}
             setDragActive={setDragActive}
             cuponsData={cuponsData}
             escalaData={escalaData}
             error={error}
+            escalaManualMode={escalaManualMode}
+            setEscalaManualMode={setEscalaManualMode}
           />
         )}
 
         {/* Se HOUVER dados de cupons, mostra os controles e o conteúdo principal */}
         {cuponsData.length > 0 && (
           <>
-            <Controls 
+            <Controls
               diasAbreviados={['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM']}
               fullDayNames={{
                 'SEG': 'SEGUNDA',
@@ -730,18 +775,20 @@ const Dashboard = () => {
 
             {/* A seção de upload retrátil SÓ aparece se o estado for true */}
             {showUploadSection && (
-               <UploadSection 
-                  processFile={processFile} 
-                  dragActive={dragActive} 
-                  setDragActive={setDragActive}
-                  cuponsData={cuponsData}
-                  escalaData={escalaData}
-                  error={error}
-                />
+              <UploadSection
+                processFile={processFile}
+                dragActive={dragActive}
+                setDragActive={setDragActive}
+                cuponsData={cuponsData}
+                escalaData={escalaData}
+                error={error}
+                escalaManualMode={escalaManualMode}
+                setEscalaManualMode={setEscalaManualMode}
+              />
             )}
 
-            <MainContent 
-              dailyData={dailyData} 
+            <MainContent
+              dailyData={dailyData}
               insights={insights}
               chartData={chartData}
               chartType={chartType}
@@ -766,50 +813,50 @@ const Dashboard = () => {
 // --- HELPER COMPONENTS ---
 
 const ChartToggleButton = ({ type, current, setType }) => {
-    const isActive = type === current;
-    const Icon = type === 'line' ? LineChartIcon : BarChart3;
-    return (
-        <button
-            onClick={() => setType(type)}
-            className={`p-2 rounded-lg transition-colors ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
-        >
-            <Icon className="w-5 h-5" />
-        </button>
-    );
+  const isActive = type === current;
+  const Icon = type === 'line' ? LineChartIcon : BarChart3;
+  return (
+    <button
+      onClick={() => setType(type)}
+      className={`p-2 rounded-lg transition-colors ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+    >
+      <Icon className="w-5 h-5" />
+    </button>
+  );
 };
 
 const InsightCard = ({ category, title, text, isHighlighted, onClick }) => {
-    const colorMap = {
-        cupons: {
-            wrapper: "bg-green-50 dark:bg-green-900/40 text-green-900 dark:text-green-200",
-            icon: "text-green-600 dark:text-green-400"
-        },
-        fluxo: {
-            wrapper: "bg-yellow-50 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-200",
-            icon: "text-yellow-600 dark:text-yellow-400"
-        },
-        funcionarios: {
-            wrapper: "bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200",
-            icon: "text-blue-600 dark:text-blue-400"
-        }
-    };
+  const colorMap = {
+    cupons: {
+      wrapper: "bg-green-50 dark:bg-green-900/40 text-green-900 dark:text-green-200",
+      icon: "text-green-600 dark:text-green-400"
+    },
+    fluxo: {
+      wrapper: "bg-yellow-50 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-200",
+      icon: "text-yellow-600 dark:text-yellow-400"
+    },
+    funcionarios: {
+      wrapper: "bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200",
+      icon: "text-blue-600 dark:text-blue-400"
+    }
+  };
 
-    const styles = colorMap[category] || colorMap.cupons;
+  const styles = colorMap[category] || colorMap.cupons;
 
-    return (
-        <div 
-            className={`rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-105 ${styles.wrapper} ${isHighlighted ? 'ring-2 ring-white/80 shadow-lg' : ''}`}
-            onClick={onClick}
-        >
-            <div className="flex items-start gap-3">
-                <AlertCircle className={`w-5 h-5 ${styles.icon} mt-0.5 flex-shrink-0`} />
-                <div>
-                    <p className="text-sm font-semibold">{title}</p>
-                    <p className="text-sm">{text}</p>
-                </div>
-            </div>
+  return (
+    <div
+      className={`rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-105 ${styles.wrapper} ${isHighlighted ? 'ring-2 ring-white/80 shadow-lg' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-start gap-3">
+        <AlertCircle className={`w-5 h-5 ${styles.icon} mt-0.5 flex-shrink-0`} />
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-sm">{text}</p>
         </div>
-    );
+      </div>
+    </div>
+  );
 }
 
 export default Dashboard;

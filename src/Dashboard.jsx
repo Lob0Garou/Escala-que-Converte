@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Upload, Calendar, TrendingUp, Users, AlertCircle, Download, BarChart3, LineChart as LineChartIcon, Moon, Sun, LogIn, Coffee, LogOut } from 'lucide-react';
-import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart } from 'recharts';
+import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot } from 'recharts';
 
 // Main App Component
 const App = () => {
@@ -606,210 +606,346 @@ const Dashboard = () => {
     </section>
   );
 
-  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab }) => (
-    <main className="flex flex-col lg:flex-row gap-6">
-      {/* Coluna da Esquerda: Schedule */}
-      <aside className="lg:w-[400px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
-        </h3>
-        <div className="max-h-[400px] lg:max-h-[600px] overflow-y-auto schedule-scroll-container">
-          {dailyData.dailySchedule.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
-          ) : (
-            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-              <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                <tr>
-                  <th scope="col" className="px-2 py-4 font-semibold w-2/5 lg:w-1/2">Atleta</th>
-                  <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Entrada</th>
-                  <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Intervalo</th>
-                  <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Saída</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyData.dailySchedule.map((person, idx) => (
-                  <tr key={idx} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 odd:bg-white/50 dark:odd:bg-gray-800/30 even:bg-black/5 dark:even:bg-black/20">
-                    <td className="px-2 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
-                      {person.ATLETA}
-                    </td>
-                    <td className="px-2 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <LogIn className="w-4 h-4 text-blue-400" />
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Coffee className="w-4 h-4 text-orange-400" />
-                        <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <LogOut className="w-4 h-4 text-green-400" />
-                        <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
-                      </div>
-                    </td>
+  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab }) => {
+    // --- ANOMALY DETECTION CONSTANTS ---
+    const MIN_FLUXO = 10;
+    const STABLE_FLUXO_PCT = 0.15;
+    const ALERT_DROP_PP = 2.0;
+    const OPP_RISE_PP = 1.5;
+
+    // --- ANOMALY DETECTION LOGIC ---
+    const conversionInsights = useMemo(() => {
+      const alerts = [];
+      const opportunities = [];
+      if (!chartData || chartData.length < 2) return { alerts, opportunities };
+
+      for (let i = 1; i < chartData.length; i++) {
+        const current = chartData[i];
+        const prev = chartData[i - 1];
+
+        const fluxoAtual = current.fluxo || 0; // Use 'fluxo' or 'qtdFluxo' based on chartData structure (using 'fluxo' from previous chart implementation)
+        const fluxoPrev = prev.fluxo || 0;
+
+        // Only evaluate if traffic is significant
+        if (fluxoAtual < MIN_FLUXO || fluxoPrev < 1) continue;
+
+        const convAtual = current.percentualConversao || 0;
+        const convPrev = prev.percentualConversao || 0;
+
+        const deltaFlow = (fluxoAtual - fluxoPrev) / Math.max(1, fluxoPrev);
+        const deltaConvPP = convAtual - convPrev;
+
+        // RULE: ALERT (Stable Flow but Conversion Drop)
+        // flow change >= -15% (not a massive drop in flow) AND conversion drop >= 2pp
+        if (deltaFlow >= -STABLE_FLUXO_PCT && deltaConvPP <= -ALERT_DROP_PP) {
+          alerts.push({
+            hora: current.hora,
+            fluxo: fluxoAtual,
+            conv: convAtual,
+            deltaConvPP,
+            deltaFlow
+          });
+        }
+
+        // RULE: OPPORTUNITY (Stable Flow but Conversion Rise)
+        // flow change <= 15% (not a massive spike in flow) AND conversion rise >= 1.5pp
+        if (deltaFlow <= STABLE_FLUXO_PCT && deltaConvPP >= OPP_RISE_PP) {
+          opportunities.push({
+            hora: current.hora,
+            fluxo: fluxoAtual,
+            conv: convAtual,
+            deltaConvPP,
+            deltaFlow
+          });
+        }
+      }
+      return { alerts, opportunities };
+    }, [chartData]);
+
+    return (
+      <main className="flex flex-col lg:flex-row gap-6">
+        {/* Coluna da Esquerda: Schedule */}
+        <aside className="lg:w-[400px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
+          </h3>
+          <div className="max-h-[400px] lg:max-h-[600px] overflow-y-auto schedule-scroll-container">
+            {dailyData.dailySchedule.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
+            ) : (
+              <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
+                  <tr>
+                    <th scope="col" className="px-2 py-4 font-semibold w-2/5 lg:w-1/2">Atleta</th>
+                    <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Entrada</th>
+                    <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Intervalo</th>
+                    <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Saída</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {dailyData.dailySchedule.map((person, idx) => (
+                    <tr key={idx} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 odd:bg-white/50 dark:odd:bg-gray-800/30 even:bg-black/5 dark:even:bg-black/20">
+                      <td className="px-2 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
+                        {person.ATLETA}
+                      </td>
+                      <td className="px-2 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <LogIn className="w-4 h-4 text-blue-400" />
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Coffee className="w-4 h-4 text-orange-400" />
+                          <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <LogOut className="w-4 h-4 text-green-400" />
+                          <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </aside>
+
+        {/* Coluna da Direita: Insights + Chart */}
+        <section className="flex-1 flex flex-col gap-6">
+
+          {/* Tab Navigation */}
+          <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setActiveTab('cobertura')}
+              className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'cobertura' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            >
+              Cobertura & Fluxo
+              {activeTab === 'cobertura' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
+            </button>
+            <button
+              onClick={() => setActiveTab('conversao')}
+              className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'conversao' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            >
+              Conversão Atual
+              {activeTab === 'conversao' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
+            </button>
+          </div>
+
+          {activeTab === 'cobertura' && (
+            <>
+              {/* Insights lado a lado */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {insights && (
+                  <>
+                    {insights.lowestConversionHour &&
+                      <InsightCard
+                        category="funcionarios"
+                        title="Menor Conversão"
+                        text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
+                        isHighlighted={highlightedLine === 'percentualConversao'}
+                        onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')}
+                      />
+                    }
+                    {insights.peakFluxoHour &&
+                      <InsightCard
+                        category="fluxo"
+                        title="Maior Fluxo"
+                        text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
+                        isHighlighted={highlightedLine === 'percentualFluxo'}
+                        onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')}
+                      />
+                    }
+                    {insights.understaffedHour &&
+                      <InsightCard
+                        category="funcionarios"
+                        title="Menor Cobertura"
+                        text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
+                        isHighlighted={highlightedLine === 'funcionarios'}
+                        onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')}
+                      />
+                    }
+                  </>
+                )}
+              </div>
+
+              {/* Gráfico como destaque principal */}
+              <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
+                </h3>
+
+                <div id="chart-container" className="w-full h-96">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartType === 'line' ? (
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                        <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                        <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 1', 'dataMax + 1']} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 2', 'dataMax + 2']} />
+                        <YAxis yAxisId="conversao" orientation="right" stroke="#8884d8" hide={true} domain={['dataMin - 2', 'dataMax + 2']} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                        <RechartsLine
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="funcionarios"
+                          name="Funcionários"
+                          stroke="#3b82f6"
+                          strokeWidth={highlightedLine === 'funcionarios' ? 4 : 2}
+                          strokeOpacity={highlightedLine && highlightedLine !== 'funcionarios' ? 0.25 : 1}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                        <RechartsLine
+                          yAxisId="conversao"
+                          type="monotone"
+                          dataKey="percentualConversao"
+                          name="% Conversão"
+                          stroke="#8884d8"
+                          strokeWidth={highlightedLine === 'percentualConversao' ? 4 : 2}
+                          strokeOpacity={highlightedLine && highlightedLine !== 'percentualConversao' ? 0.25 : 1}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                        <RechartsLine
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="percentualFluxo"
+                          name="Fluxo (%)"
+                          stroke="#ffc658"
+                          strokeWidth={highlightedLine === 'percentualFluxo' ? 4 : 2}
+                          strokeOpacity={highlightedLine && highlightedLine !== 'percentualFluxo' ? 0.25 : 1}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    ) : (
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                        <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                        <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                        <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
+                        <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
+                        <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
           )}
-        </div>
-      </aside>
 
-      {/* Coluna da Direita: Insights + Chart */}
-      <section className="flex-1 flex flex-col gap-6">
+          {activeTab === 'conversao' && (
+            <div className="flex-1 flex flex-col gap-6">
 
-        {/* Tab Navigation */}
-        <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700">
-          <button
-            onClick={() => setActiveTab('cobertura')}
-            className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'cobertura' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          >
-            Cobertura & Fluxo
-            {activeTab === 'cobertura' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
-          </button>
-          <button
-            onClick={() => setActiveTab('conversao')}
-            className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'conversao' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          >
-            Conversão Atual
-            {activeTab === 'conversao' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
-          </button>
-        </div>
-
-        {activeTab === 'cobertura' && (
-          <>
-            {/* Insights lado a lado */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {insights && (
-                <>
-                  {insights.lowestConversionHour &&
-                    <InsightCard
-                      category="funcionarios"
-                      title="Menor Conversão"
-                      text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
-                      isHighlighted={highlightedLine === 'percentualConversao'}
-                      onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')}
-                    />
-                  }
-                  {insights.peakFluxoHour &&
-                    <InsightCard
-                      category="fluxo"
-                      title="Maior Fluxo"
-                      text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
-                      isHighlighted={highlightedLine === 'percentualFluxo'}
-                      onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')}
-                    />
-                  }
-                  {insights.understaffedHour &&
-                    <InsightCard
-                      category="funcionarios"
-                      title="Menor Cobertura"
-                      text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
-                      isHighlighted={highlightedLine === 'funcionarios'}
-                      onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')}
-                    />
-                  }
-                </>
-              )}
-            </div>
-
-            {/* Gráfico como destaque principal */}
-            <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
-              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
-              </h3>
-
-              <div id="chart-container" className="w-full h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  {chartType === 'line' ? (
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                      <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                      <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 1', 'dataMax + 1']} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 2', 'dataMax + 2']} />
-                      <YAxis yAxisId="conversao" orientation="right" stroke="#8884d8" hide={true} domain={['dataMin - 2', 'dataMax + 2']} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                      <RechartsLine
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="funcionarios"
-                        name="Funcionários"
-                        stroke="#3b82f6"
-                        strokeWidth={highlightedLine === 'funcionarios' ? 4 : 2}
-                        strokeOpacity={highlightedLine && highlightedLine !== 'funcionarios' ? 0.25 : 1}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <RechartsLine
-                        yAxisId="conversao"
-                        type="monotone"
-                        dataKey="percentualConversao"
-                        name="% Conversão"
-                        stroke="#8884d8"
-                        strokeWidth={highlightedLine === 'percentualConversao' ? 4 : 2}
-                        strokeOpacity={highlightedLine && highlightedLine !== 'percentualConversao' ? 0.25 : 1}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <RechartsLine
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="percentualFluxo"
-                        name="Fluxo (%)"
-                        stroke="#ffc658"
-                        strokeWidth={highlightedLine === 'percentualFluxo' ? 4 : 2}
-                        strokeOpacity={highlightedLine && highlightedLine !== 'percentualFluxo' ? 0.25 : 1}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Alerts Card */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-l-4 border-l-red-500">
+                  <h4 className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    Alertas de Queda ({conversionInsights.alerts.length})
+                  </h4>
+                  {conversionInsights.alerts.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum alerta detectado.</p>
                   ) : (
-                    <BarChart data={chartData}>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {conversionInsights.alerts.map((alert, idx) => (
+                        <div key={idx} className="text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                          <span className="font-bold text-red-700 dark:text-red-300">{alert.hora}</span>:
+                          <span className="mx-2 text-gray-600 dark:text-gray-400">Fluxo {alert.fluxo}</span>
+                          <span className="font-medium text-red-600 dark:text-red-400">Conv {alert.conv}% ({alert.deltaConvPP.toFixed(1)}pp)</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Opportunities Card */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-l-4 border-l-green-500">
+                  <h4 className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                    <TrendingUp className="w-5 h-5 text-green-500" />
+                    Oportunidades ({conversionInsights.opportunities.length})
+                  </h4>
+                  {conversionInsights.opportunities.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma oportunidade detectada.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {conversionInsights.opportunities.map((opp, idx) => (
+                        <div key={idx} className="text-sm bg-green-50 dark:bg-green-900/20 p-2 rounded">
+                          <span className="font-bold text-green-700 dark:text-green-300">{opp.hora}</span>:
+                          <span className="mx-2 text-gray-600 dark:text-gray-400">Fluxo {opp.fluxo}</span>
+                          <span className="font-medium text-green-600 dark:text-green-400">Conv {opp.conv}% (+{opp.deltaConvPP.toFixed(1)}pp)</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col min-h-[400px]">
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-purple-500" /> Conversão vs Fluxo
+                </h3>
+                <div className="w-full h-96">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
                       <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                      <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                      <YAxis yAxisId="left" orientation="left" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} label={{ value: 'Fluxo (Qtd)', angle: -90, position: 'insideLeft', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#8884d8" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={[0, 100]} label={{ value: 'Conversão (%)', angle: 90, position: 'insideRight', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                      <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
-                      <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
-                      <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
-                    </BarChart>
-                  )}
-                </ResponsiveContainer>
+                      <Bar yAxisId="left" dataKey="fluxo" name="Fluxo (Qtd)" fill="#ffc658" barSize={30} opacity={0.6} />
+                      <RechartsLine yAxisId="right" type="monotone" dataKey="percentualConversao" name="Conversão (%)" stroke="#8884d8" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+
+                      {/* ALERT MARKERS */}
+                      {conversionInsights.alerts.map((alert, idx) => (
+                        <ReferenceDot
+                          key={`alert-${idx}`}
+                          yAxisId="right"
+                          x={alert.hora}
+                          y={alert.conv}
+                          r={6}
+                          fill="red"
+                          stroke="white"
+                          strokeWidth={2}
+                          isFront={true}
+                        />
+                      ))}
+
+                      {/* OPPORTUNITY MARKERS */}
+                      {conversionInsights.opportunities.map((opp, idx) => (
+                        <ReferenceDot
+                          key={`opp-${idx}`}
+                          yAxisId="right"
+                          x={opp.hora}
+                          y={opp.conv}
+                          r={6}
+                          fill="#10b981"
+                          stroke="white"
+                          strokeWidth={2}
+                          isFront={true}
+                        />
+                      ))}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </>
-        )}
+          )}
+        </section>
+      </main>
+    );
+  };
 
-        {activeTab === 'conversao' && (
-          <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col min-h-[400px]">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-purple-500" /> Conversão vs Fluxo
-            </h3>
-            <div className="w-full h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                  <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="left" orientation="left" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} label={{ value: 'Fluxo (Qtd)', angle: -90, position: 'insideLeft', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#8884d8" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={[0, 100]} label={{ value: 'Conversão (%)', angle: 90, position: 'insideRight', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                  <Bar yAxisId="left" dataKey="fluxo" name="Fluxo (Qtd)" fill="#ffc658" barSize={30} opacity={0.8} />
-                  <RechartsLine yAxisId="right" type="monotone" dataKey="percentualConversao" name="Conversão (%)" stroke="#8884d8" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-      </section>
-    </main>
-  );
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {

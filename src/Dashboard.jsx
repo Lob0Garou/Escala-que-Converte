@@ -228,8 +228,22 @@ const Dashboard = () => {
     );
     console.log('DADOS POR HORA FILTRADOS:', dayCupons);
 
-    const dailySchedule = escalaData.length > 0
-      ? escalaData
+    // Determine source data (File vs Manual)
+    let effectiveEscalaData = [];
+    if (escalaManualMode) {
+      effectiveEscalaData = manualEscalaRows.map(row => ({
+        DIA: selectedDay,
+        ATLETA: row.nome || 'Sem Nome',
+        ENTRADA: row.entrada, // Expect "HH:mm"
+        INTER: row.intervalo, // Expect "HH:mm"
+        SAIDA: row.saidaDiaSeguinte ? (row.saida ? `${row.saida} (+1)` : '') : row.saida // Handle +1 suffix or rely on existing logic
+      }));
+    } else {
+      effectiveEscalaData = escalaData;
+    }
+
+    const dailySchedule = effectiveEscalaData.length > 0
+      ? effectiveEscalaData
         .filter(e => e.DIA === selectedDay && e.ENTRADA)
         .sort((a, b) => {
           const timeA = a.ENTRADA ? parseInt(a.ENTRADA.split(':')[0], 10) : 99;
@@ -251,7 +265,7 @@ const Dashboard = () => {
       maxHour,
       operatingHourCount: operatingHours.length || 1,
     };
-  }, [cuponsData, escalaData, selectedDay, diasSemana]);
+  }, [cuponsData, escalaData, selectedDay, diasSemana, escalaManualMode, manualEscalaRows]);
 
   const calculateStaffPerHour = useCallback((dayData, minHour, maxHour) => {
     const staffCount = {};

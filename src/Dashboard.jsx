@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Upload, Calendar, TrendingUp, Users, AlertCircle, Download, BarChart3, LineChart as LineChartIcon, Moon, Sun, LogIn, Coffee, LogOut } from 'lucide-react';
-import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine } from 'recharts';
+import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart } from 'recharts';
 
 // Main App Component
 const App = () => {
@@ -787,12 +787,24 @@ const Dashboard = () => {
         )}
 
         {activeTab === 'conversao' && (
-          <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col items-center justify-center min-h-[400px]">
-            <BarChart3 className="w-16 h-16 text-gray-300 dark:text-gray-600 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Conversão Atual</h3>
-            <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
-              Em breve: Análise detalhada da taxa de conversão em relação ao fluxo de clientes por hora.
-            </p>
+          <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col min-h-[400px]">
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-purple-500" /> Conversão vs Fluxo
+            </h3>
+            <div className="w-full h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
+                  <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="left" orientation="left" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} label={{ value: 'Fluxo (Qtd)', angle: -90, position: 'insideLeft', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#8884d8" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={[0, 100]} label={{ value: 'Conversão (%)', angle: 90, position: 'insideRight', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
+                  <Bar yAxisId="left" dataKey="fluxo" name="Fluxo (Qtd)" fill="#ffc658" barSize={30} opacity={0.8} />
+                  <RechartsLine yAxisId="right" type="monotone" dataKey="percentualConversao" name="Conversão (%)" stroke="#8884d8" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
       </section>

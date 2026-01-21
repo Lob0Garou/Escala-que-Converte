@@ -1,6 +1,102 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Upload, Calendar, TrendingUp, Users, AlertCircle, Download, BarChart3, LineChart as LineChartIcon, Moon, Sun, LogIn, Coffee, LogOut } from 'lucide-react';
-import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot } from 'recharts';
+import React, { useState, useCallback, useMemo, useEffect, useRef, forwardRef } from 'react';
+import html2canvas from 'html2canvas';
+import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download } from 'lucide-react';
+import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot, Area, LabelList } from 'recharts';
+
+// --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
+const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue, title }) => {
+  const [step, setStep] = useState('hour'); // 'hour' ou 'minute'
+  const [selectedHour, setSelectedHour] = useState(null);
+
+  // Reseta o estado ao abrir
+  useEffect(() => {
+    if (isOpen) {
+      setStep('hour');
+      if (initialValue) {
+        const [h] = initialValue.split(':');
+        setSelectedHour(h);
+      }
+    }
+  }, [isOpen, initialValue]);
+
+  if (!isOpen) return null;
+
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const minutes = ['00', '15', '30', '45'];
+
+  const handleHourClick = (h) => {
+    setSelectedHour(h);
+    setStep('minute');
+  };
+
+  const handleMinuteClick = (m) => {
+    onSelect(`${selectedHour}:${m}`);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#121620] border border-white/10 rounded-2xl shadow-2xl w-[320px] overflow-hidden transform transition-all scale-100">
+        {/* Header do Modal */}
+        <div className="bg-[#0B0F1A] p-4 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {step === 'minute' && (
+              <button onClick={() => setStep('hour')} className="text-gray-400 hover:text-white transition-colors">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest text-[#D6B46A]">
+              {step === 'hour' ? 'Escolha a Hora' : `Hora: ${selectedHour}h`}
+            </h3>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Corpo do Modal */}
+        <div className="p-4">
+          {step === 'hour' && (
+            <div className="grid grid-cols-6 gap-2">
+              {hours.map((h) => (
+                <button
+                  key={h}
+                  onClick={() => handleHourClick(h)}
+                  className={`
+                    h-10 rounded-lg text-sm font-bold tabular-nums transition-all border
+                    ${selectedHour === h
+                      ? 'bg-[#D6B46A] text-black border-[#D6B46A] shadow-[0_0_10px_rgba(214,180,106,0.4)]'
+                      : 'bg-white/5 border-white/5 text-gray-300 hover:bg-white/10 hover:border-white/20'
+                    }
+                  `}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {step === 'minute' && (
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-center text-gray-400 uppercase tracking-widest">Selecione os minutos</p>
+              <div className="grid grid-cols-2 gap-3">
+                {minutes.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => handleMinuteClick(m)}
+                    className="h-14 rounded-xl bg-white/5 border border-white/5 text-xl font-bold text-white hover:bg-[#D6B46A]/20 hover:border-[#D6B46A] hover:text-[#D6B46A] transition-all tabular-nums"
+                  >
+                    :{m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Main App Component
 const App = () => {
@@ -9,43 +105,111 @@ const App = () => {
 
 // The main Dashboard component
 const Dashboard = () => {
+  const dashboardRef = useRef(null);
+  const printRef = useRef(null);
+
+  const [printTheme, setPrintTheme] = useState('dark');
+
+  const handleDownloadImage = useCallback(async () => {
+    if (!printRef.current) return;
+
+    try {
+      // Temporarily ensure the element is visible and fully expanded
+      const originalPosition = printRef.current.style.position;
+      const originalLeft = printRef.current.style.left;
+
+      // Force layout recalculation
+      const scrollHeight = printRef.current.scrollHeight;
+      const windowWidth = 1280;
+
+      const canvas = await html2canvas(printRef.current, {
+        backgroundColor: printTheme === 'dark' ? '#070A10' : '#ffffff',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        width: windowWidth,
+        height: scrollHeight + 100, // Add buffer
+        windowWidth: windowWidth,
+        windowHeight: scrollHeight + 100,
+        onclone: (clonedDoc) => {
+          const element = clonedDoc.querySelector('[data-print-target]');
+          if (element) {
+            element.style.display = 'flex';
+            element.style.visibility = 'visible';
+            // Ensure background is correct in clone
+            if (printTheme === 'light') {
+              element.style.background = '#ffffff';
+            }
+          }
+        }
+      });
+
+      const link = document.createElement('a');
+      link.download = `escala-semanal-${printTheme}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error("Erro ao gerar imagem:", err);
+    }
+  }, [printTheme]);
+
+  useEffect(() => {
+    const handleEvent = () => handleDownloadImage();
+    const handleThemeUpdate = (e) => setPrintTheme(e.detail);
+
+    window.addEventListener('generate-weekly-image', handleEvent);
+    window.addEventListener('update-print-theme', handleThemeUpdate);
+
+    return () => {
+      window.removeEventListener('generate-weekly-image', handleEvent);
+      window.removeEventListener('update-print-theme', handleThemeUpdate);
+    };
+  }, [handleDownloadImage]);
+
   // --- STATE MANAGEMENT ---
   const [dragActive, setDragActive] = useState({ cupons: false, escala: false });
   const [cuponsData, setCuponsData] = useState([]);
-  const [escalaData, setEscalaData] = useState([]);
   const [selectedDay, setSelectedDay] = useState('SEGUNDA');
-  const [chartType, setChartType] = useState('line');
+  const [chartType, setChartType] = useState('composed');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState({ cupons: null, escala: null });
-  const [theme, setTheme] = useState('dark'); // Default theme is now dark
+  const [theme, setTheme] = useState('dark');
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [highlightedLine, setHighlightedLine] = useState(null);
-  const [escalaManualMode, setEscalaManualMode] = useState(false);
-  const [manualEscalaRows, setManualEscalaRows] = useState([]);
   const [activeTab, setActiveTab] = useState('cobertura');
+
+  // Estado do Picker de Hora
+  const [pickerState, setPickerState] = useState({ isOpen: false, rowId: null, field: null, value: '' });
+
+  // --- SEED DATA GENERATOR ---
+  const generateSeedData = useCallback(() => {
+    const days = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'];
+    let rows = [];
+    let idCounter = 1;
+    days.forEach(day => {
+      for (let i = 0; i < 10; i++) {
+        rows.push({
+          id: `seed-${day}-${idCounter++}`,
+          dia: day,
+          nome: `COLAB ${String(i + 1).padStart(2, '0')}`,
+          entrada: '10:00',
+          intervalo: '14:00',
+          saida: '18:00',
+          saidaDiaSeguinte: false
+        });
+      }
+    });
+    return rows;
+  }, []);
+
+  const [staffRows, setStaffRows] = useState(generateSeedData());
 
   // --- THEME SWITCHER ---
   useEffect(() => {
-    // On initial load, check for saved theme in localStorage, default to dark
-    const savedTheme = localStorage.getItem('dashboard-theme') || 'dark';
-    setTheme(savedTheme);
+    setTheme('dark');
+    document.documentElement.classList.add('dark');
   }, []);
-
-  useEffect(() => {
-    // Apply theme to the root element
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    // Save theme choice to localStorage
-    localStorage.setItem('dashboard-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
-
 
   // --- CONSTANTS & MAPPINGS ---
   const diasSemana = useMemo(() => ({
@@ -59,12 +223,6 @@ const Dashboard = () => {
   }), []);
 
   // --- UTILITY FUNCTIONS ---
-
-  /**
-   * Converts various Excel time formats into a consistent "HH:mm" string.
-   * @param {any} excelTime - The value from the Excel cell.
-   * @returns {string|null} - The formatted time string or null for invalid/empty values.
-   */
   const excelTimeToString = (excelTime) => {
     if (!excelTime || typeof excelTime === 'string' && excelTime.toUpperCase() === 'FOLGA') {
       return null;
@@ -86,11 +244,6 @@ const Dashboard = () => {
     return null;
   };
 
-  /**
-   * Parse numbers from Excel, handling strings with commas and other formats.
-   * @param {any} value - The value from Excel cell.
-   * @returns {number} - Parsed number or 0 if invalid.
-   */
   const parseNumber = (value) => {
     if (typeof value === 'string') {
       return parseFloat(value.replace(/,/g, '')) || 0;
@@ -98,43 +251,22 @@ const Dashboard = () => {
     return parseFloat(value) || 0;
   };
 
-  /**
-   * Find and parse conversion value from Excel data.
-   * Searches for "% Conversão" column and converts decimal to percentage.
-   * @param {Object} cupom - The data row from Excel.
-   * @returns {number} - Conversion percentage or 0 if not found.
-   */
   const findAndParseConversion = (cupom) => {
     const conversaoValue = cupom['% Conversão'];
     if (conversaoValue == null || conversaoValue === '') return 0;
-
     const numericValue = parseFloat(conversaoValue);
     if (isNaN(numericValue)) return 0;
-
-    // Se o valor é decimal (< 1), multiplica por 100 para converter para porcentagem
     return numericValue < 1 ? numericValue * 100 : numericValue;
   };
 
-  /**
-   * Parse flux value from Excel, removing ".0%" suffix.
-   * @param {any} value - The flux value from Excel (e.g., "51800.0%").
-   * @returns {number} - Clean numeric value.
-   */
   const parseFluxValue = (value) => {
     if (typeof value === 'string') {
-      // Remove ".0%" suffix and parse as number
       return parseFloat(value.replace('.0%', '')) || 0;
     }
     return parseFloat(value) || 0;
   };
 
   // --- FILE PROCESSING ---
-
-  /**
-   * Processes an uploaded Excel file.
-   * @param {File} file - The file to process.
-   * @param {'cupons' | 'escala'} type - The type of data being uploaded.
-   */
   const processFile = useCallback(async (file, type) => {
     setLoading(true);
     setError(prev => ({ ...prev, [type]: null }));
@@ -145,25 +277,46 @@ const Dashboard = () => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
       if (type === 'cupons') {
-        console.log('DADOS BRUTOS DO ARQUIVO:', jsonData);
         setCuponsData(jsonData);
       } else {
-        const processedData = jsonData.map(row => ({
-          ...row,
-          ENTRADA: excelTimeToString(row.ENTRADA),
-          INTER: excelTimeToString(row.INTER),
-          SAIDA: excelTimeToString(row.SAIDA)
-        }));
-        setEscalaData(processedData);
+        const processedRows = jsonData.map((row, index) => ({
+          id: `upload-${Date.now()}-${index}`,
+          dia: row.DIA ? row.DIA.toUpperCase().trim() : null,
+          nome: row.ATLETA || row.NOME || 'Sem Nome',
+          entrada: excelTimeToString(row.ENTRADA) || '',
+          intervalo: excelTimeToString(row.INTER) || '',
+          saida: excelTimeToString(row.SAIDA) || '',
+          saidaDiaSeguinte: false
+        })).map(row => {
+          if (row.entrada && row.saida) {
+            const [hE] = row.entrada.split(':').map(Number);
+            const [hS] = row.saida.split(':').map(Number);
+            if (hS < hE) row.saidaDiaSeguinte = true;
+          }
+          return row;
+        });
+
+        const uniqueDays = [...new Set(processedRows.map(r => r.dia).filter(Boolean))];
+
+        setStaffRows(prev => {
+          if (uniqueDays.length > 1) {
+            return processedRows.filter(r => r.dia);
+          }
+          else {
+            const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : selectedDay;
+            const otherDays = prev.filter(r => r.dia !== targetDay);
+            const newRows = processedRows.map(r => ({ ...r, dia: targetDay }));
+            return [...otherDays, ...newRows];
+          }
+        });
       }
     } catch (err) {
       console.error(`Error processing ${type} file:`, err);
       setError(prev => ({ ...prev, [type]: 'Erro ao processar. Verifique o formato do arquivo.' }));
     }
     setLoading(false);
-  }, []);
+  }, [selectedDay]);
 
-  // --- EVENT HANDLERS ---
   const handleFileUpload = useCallback(async (event, type) => {
     const file = event.target.files?.[0];
     if (file) await processFile(file, type);
@@ -188,64 +341,84 @@ const Dashboard = () => {
     }
   }, [processFile]);
 
-  // --- MANUAL ENTRY HANDLERS ---
-  const addManualRow = useCallback(() => {
-    setManualEscalaRows(prev => [
-      ...prev,
-      { id: Date.now(), nome: '', entrada: '', intervalo: '', saida: '', saidaDiaSeguinte: false }
-    ]);
-  }, []);
+  const addStaffRow = useCallback(() => {
+    setStaffRows(prev => {
+      const id = `manual-${Date.now()}`;
+      const newRow = {
+        id,
+        dia: selectedDay,
+        nome: '',
+        entrada: '',
+        intervalo: '',
+        saida: '',
+        saidaDiaSeguinte: false
+      };
+      return [...prev, newRow];
+    });
+  }, [selectedDay]);
 
-  const updateManualRow = useCallback((id, field, value) => {
-    setManualEscalaRows(prev => prev.map(row =>
+  const updateStaffRow = useCallback((id, field, value) => {
+    setStaffRows(prev => prev.map(row =>
       row.id === id ? { ...row, [field]: value } : row
     ));
   }, []);
 
-  const removeManualRow = useCallback((id) => {
-    setManualEscalaRows(prev => prev.filter(row => row.id !== id));
+  const removeStaffRow = useCallback((id) => {
+    setStaffRows(prev => prev.filter(row => row.id !== id));
   }, []);
 
+  // --- LOGICA DO TIME PICKER ---
+  const openTimePicker = (id, field, currentValue) => {
+    setPickerState({
+      isOpen: true,
+      rowId: id,
+      field: field,
+      value: currentValue
+    });
+  };
 
-  // --- DATA COMPUTATION (MEMOIZED) ---
+  const handleTimePickerSelect = (newValue) => {
+    if (pickerState.rowId && pickerState.field) {
+      updateStaffRow(pickerState.rowId, pickerState.field, newValue);
+    }
+  };
 
+  // --- DATA COMPUTATION ---
   const dailyData = useMemo(() => {
     if (!cuponsData.length) return null;
 
     const dayMapping = diasSemana[selectedDay];
-
-    // Encontrar a linha de "Total" para o dia selecionado
     const totalRow = cuponsData.find(c => c['Dia da Semana'] === dayMapping && c['cod_hora_entrada'] === 'Total');
-    console.log('LINHA DE TOTAL ENCONTRADA:', totalRow);
 
-    // Extrair totais diretamente da linha "Total"
     const totalCupons = totalRow ? parseNumber(totalRow['qtd_cupom']) : 0;
     const totalFluxo = totalRow ? parseFluxValue(totalRow['qtd_entrante']) : 0;
-    // Filtrar dados para obter apenas as linhas com horas (excluindo "Total" e strings não numéricas)
+
     const dayCupons = cuponsData.filter(c =>
       c['Dia da Semana'] === dayMapping &&
       c['cod_hora_entrada'] !== 'Total' &&
       !isNaN(parseInt(c['cod_hora_entrada'], 10))
     );
-    console.log('DADOS POR HORA FILTRADOS:', dayCupons);
 
-    // Determine source data (File vs Manual)
-    let effectiveEscalaData = [];
-    if (escalaManualMode) {
-      effectiveEscalaData = manualEscalaRows.map(row => ({
-        DIA: selectedDay,
-        ATLETA: row.nome || 'Sem Nome',
-        ENTRADA: row.entrada, // Expect "HH:mm"
-        INTER: row.intervalo, // Expect "HH:mm"
-        SAIDA: row.saidaDiaSeguinte ? (row.saida ? `${row.saida} (+1)` : '') : row.saida // Handle +1 suffix or rely on existing logic
+    const effectiveEscalaData = staffRows
+      .filter(r => r.dia === selectedDay)
+      .map(row => ({
+        id: row.id,
+        raw: row,
+        DIA: row.dia,
+        ATLETA: row.nome,
+        nome: row.nome,
+        entrada: row.entrada,
+        intervalo: row.intervalo,
+        saida: row.saida,
+        saidaDiaSeguinte: row.saidaDiaSeguinte,
+        ENTRADA: row.entrada,
+        INTER: row.intervalo,
+        SAIDA: row.saidaDiaSeguinte ? (row.saida ? `${row.saida} (+1)` : '') : row.saida
       }));
-    } else {
-      effectiveEscalaData = escalaData;
-    }
 
     const dailySchedule = effectiveEscalaData.length > 0
       ? effectiveEscalaData
-        .filter(e => e.DIA === selectedDay && e.ENTRADA)
+        .filter(e => e.ENTRADA)
         .sort((a, b) => {
           const timeA = a.ENTRADA ? parseInt(a.ENTRADA.split(':')[0], 10) : 99;
           const timeB = b.ENTRADA ? parseInt(b.ENTRADA.split(':')[0], 10) : 99;
@@ -266,7 +439,7 @@ const Dashboard = () => {
       maxHour,
       operatingHourCount: operatingHours.length || 1,
     };
-  }, [cuponsData, escalaData, selectedDay, diasSemana, escalaManualMode, manualEscalaRows]);
+  }, [cuponsData, staffRows, selectedDay, diasSemana]);
 
   const calculateStaffPerHour = useCallback((dayData, minHour, maxHour) => {
     const staffCount = {};
@@ -276,14 +449,10 @@ const Dashboard = () => {
       staffCount[hour] = 0;
       dayData.forEach(person => {
         if (!person.ENTRADA || !person.SAIDA) return;
-
         const entradaHour = parseInt(person.ENTRADA.split(':')[0], 10);
         let saidaHour = parseInt(person.SAIDA.split(':')[0], 10);
-
         if (saidaHour < entradaHour) saidaHour += 24;
-
         const interHour = person.INTER ? parseInt(person.INTER.split(':')[0], 10) : -1;
-
         if (hour >= entradaHour && hour < saidaHour && hour !== interHour) {
           staffCount[hour]++;
         }
@@ -292,65 +461,79 @@ const Dashboard = () => {
     return staffCount;
   }, []);
 
+  // --- LÓGICA DE NORMALIZAÇÃO (Matemática para o Gráfico) ---
   const chartData = useMemo(() => {
-    if (!dailyData) return [];
+    if (!dailyData || dailyData.length === 0) return [];
+
+    // FILTRO: Ignorar 22h para gráficos e métricas (mantém apenas na escala)
+    const filteredDayCupons = dailyData.dayCupons.filter(c => parseInt(c['cod_hora_entrada'], 10) !== 22);
 
     const staffPerHour = calculateStaffPerHour(dailyData.dailySchedule, dailyData.minHour, dailyData.maxHour);
     const totalCuponsForPercent = dailyData.totalCupons || 1;
     const totalFluxoForPercent = dailyData.totalFluxo || 1;
 
-    return dailyData.dayCupons.map(cupom => {
+    // 2. Mapeamento Inicial
+    const basicData = filteredDayCupons.map(cupom => {
       const hour = parseInt(cupom['cod_hora_entrada'], 10);
       const qtdCupons = parseNumber(cupom['qtd_cupom']);
       const qtdFluxo = parseFluxValue(cupom['qtd_entrante']);
-
-      // Usar função específica para parsing de conversão
       const percentualConversao = findAndParseConversion(cupom);
 
       return {
-        hora: `${hour}h`,
+        hora: `${hour}`, // Mantendo string simples para o eixo X
         funcionarios: staffPerHour[hour] || 0,
         percentualCupons: parseFloat(((qtdCupons / totalCuponsForPercent) * 100).toFixed(1)),
         cupons: qtdCupons,
         percentualFluxo: parseFloat(((qtdFluxo / totalFluxoForPercent) * 100).toFixed(1)),
         fluxo: qtdFluxo,
-        percentualConversao: percentualConversao
+        percentualConversao: percentualConversao,
+        conversao: percentualConversao
       };
     });
+
+    if (basicData.length === 0) return [];
+
+    const maxFluxo = Math.max(...basicData.map(d => Number(d.fluxo) || 0));
+    const maxStaff = Math.max(...basicData.map(d => Number(d.funcionarios) || 0)) || 1;
+
+    // Fator de Escala: Quanto vale 1 funcionário na escala visual do Fluxo
+    const scaleFactor = maxFluxo / maxStaff;
+
+    return basicData.map(item => ({
+      ...item,
+      // Dados Reais
+      fluxo: Number(item.fluxo),
+      conversao: Number(item.conversao),
+      funcionarios_real: Number(item.funcionarios),
+
+      // Dado Visual (Inflado)
+      funcionarios_visual: Number(item.funcionarios) * scaleFactor,
+
+      // --- PONTO CRÍTICO (VISUAL ALERT) ---
+      // Se fluxo > 50 e conversão < 10, marca o ponto exatamente no pico do fluxo
+      pontoCritico: (Number(item.fluxo) > 50 && Number(item.conversao) < 10) ? Number(item.fluxo) : null
+    }));
   }, [dailyData, calculateStaffPerHour]);
 
   const insights = useMemo(() => {
     if (!chartData.length) return null;
-
-    // Encontrar hora com menor conversão (excluindo valores zero)
     const validConversionHours = chartData.filter(d => d.percentualConversao > 0);
     const lowestConversionHour = validConversionHours.length > 0
-      ? validConversionHours.reduce((min, curr) =>
-        curr.percentualConversao < min.percentualConversao ? curr : min
-      )
+      ? validConversionHours.reduce((min, curr) => curr.percentualConversao < min.percentualConversao ? curr : min)
       : null;
-
-    const peakFluxoHour = chartData.length > 0 ? chartData.reduce((max, curr) =>
-      curr.percentualFluxo > max.percentualFluxo ? curr : max
-    ) : null;
-
-    // Filter out the 22:00 hour for understaffed calculation
+    const peakFluxoHour = chartData.length > 0 ? chartData.reduce((max, curr) => curr.percentualFluxo > max.percentualFluxo ? curr : max) : null;
     const relevantHoursForStaffing = chartData.filter(d => parseInt(d.hora.replace('h', '')) < 22);
-
     const understaffedHour = relevantHoursForStaffing.length > 0
-      ? relevantHoursForStaffing.reduce((min, curr) =>
-        curr.funcionarios < min.funcionarios ? curr : min, relevantHoursForStaffing[0]
-      )
+      ? relevantHoursForStaffing.reduce((min, curr) => curr.funcionarios < min.funcionarios ? curr : min, relevantHoursForStaffing[0])
       : null;
-
     return { lowestConversionHour, peakFluxoHour, understaffedHour };
   }, [chartData]);
 
+  // dailyMetrics moved to MainContent
 
   // --- EXPORT FUNCTION ---
   const exportData = async () => {
     if (!chartData.length || !insights) return;
-
     try {
       const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs');
       const exportableChartData = chartData.map(item => ({
@@ -361,14 +544,12 @@ const Dashboard = () => {
         'Percentual Fluxo (%)': item.percentualFluxo,
         'Quantidade Fluxo': item.fluxo
       }));
-
       const insightsData = [
         {},
         { 'Hora': '--- INSIGHTS ---' },
         { 'Hora': 'Menor Conversão', 'Funcionários': insights.lowestConversionHour ? insights.lowestConversionHour.hora : 'N/A', 'Percentual Cupons (%)': insights.lowestConversionHour ? `${insights.lowestConversionHour.percentualConversao}%` : 'N/A' },
         { 'Hora': 'Menor Cobertura', 'Funcionários': insights.understaffedHour ? `${insights.understaffedHour.funcionarios} funcionários` : 'N/A', 'Percentual Cupons (%)': insights.understaffedHour ? insights.understaffedHour.hora : 'N/A' }
       ];
-
       const ws = XLSX.utils.json_to_sheet(exportableChartData.concat(insightsData));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `Análise ${selectedDay}`);
@@ -379,33 +560,37 @@ const Dashboard = () => {
     }
   };
 
-  // --- RENDER COMPONENTS ---
-
   const Header = () => (
-    <header className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-        Escala de Alta Performance
-      </h1>
-      <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-        Garanta a cobertura ideal para cada pico de vendas e evite ociosidade.
-      </p>
+    <header className="bg-[#121620]/60 backdrop-blur-2xl border-b border-white/5 h-14 flex-none flex items-center justify-between px-6 z-20 shadow-md">
+      <div className="flex items-center gap-4">
+        <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-3">
+          Escala de Alta Performance
+          <div className="h-4 w-px bg-white/10 mx-2"></div>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#D6B46A] border border-[#D6B46A]/20 bg-[#D6B46A]/5 px-2 py-0.5 rounded-full">Pro v2</span>
+        </h1>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest tabular-nums opacity-60">
+          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' })}
+        </div>
+      </div>
     </header>
   );
 
   const LoadingOverlay = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 shadow-xl text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-        <p className="mt-4 text-gray-700">Processando arquivo...</p>
+    <div className="fixed inset-0 bg-[#0B0F1A]/90 flex items-center justify-center z-50 backdrop-blur-sm">
+      <div className="bg-[#121620] border border-white/10 rounded-2xl p-8 shadow-2xl text-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#D6B46A] mx-auto mb-4"></div>
+        <p className="text-gray-300 font-medium tabular-nums text-sm">Processando...</p>
       </div>
     </div>
   );
 
-  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, escalaData, error, escalaManualMode, setEscalaManualMode, manualEscalaRows, addManualRow, updateManualRow, removeManualRow }) => (
-    <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, error }) => (
+    <section className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 h-full items-center max-w-5xl mx-auto w-full">
       <UploadBox
         type="cupons"
-        title="FLUXO"
+        title="Fluxo de Loja"
         onUpload={handleFileUpload}
         onDrag={handleDrag}
         onDrop={handleDrop}
@@ -413,551 +598,335 @@ const Dashboard = () => {
         data={cuponsData}
         errorState={error.cupons}
       />
-      <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+      <div className="flex flex-col h-[300px] bg-[#121620]/60 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-xl overflow-hidden hover:border-white/10 transition-all duration-300 group">
         <div className="flex items-center justify-between px-6 pt-6 mb-2">
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">ESCALA</h3>
-          <div className="flex gap-2 bg-gray-100 dark:bg-gray-700/50 p-1 rounded-lg">
-            <button
-              onClick={() => setEscalaManualMode(false)}
-              className={`text-xs px-3 py-1.5 rounded-md transition-all font-medium ${!escalaManualMode ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-            >
-              Arquivo
-            </button>
-            <button
-              onClick={() => setEscalaManualMode(true)}
-              className={`text-xs px-3 py-1.5 rounded-md transition-all font-medium ${escalaManualMode ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-            >
-              Manual
-            </button>
-          </div>
+          <h3 className="text-sm font-bold text-white tracking-widest uppercase">Escala</h3>
+          <span className="text-[10px] font-bold text-[#D6B46A] bg-[#D6B46A]/10 border border-[#D6B46A]/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+            Atual
+          </span>
         </div>
-
         <div className="flex-1 px-6 pb-6">
-          {!escalaManualMode ? (
-            <div
-              className={`border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors cursor-pointer ${dragActive.escala ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-700' : ''}`}
-              onDragEnter={(e) => setDragActive(prev => ({ ...prev, escala: true }))}
-              onDragLeave={(e) => setDragActive(prev => ({ ...prev, escala: false }))}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragActive(prev => ({ ...prev, escala: false }));
-                if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0], 'escala');
-              }}
-            >
-              <label className="block cursor-pointer">
-                <Upload className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Arraste aqui ou clique para selecionar</p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">Arquivo .xlsx ou .xls</p>
-                <input type="file" accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0], 'escala')} className="hidden" />
-              </label>
-              {escalaData.length > 0 && !error.escala && (
-                <p className="mt-3 text-sm text-green-600 font-medium">✓ {escalaData.length} registros carregados</p>
-              )}
-              {error.escala && (
-                <p className="mt-3 text-sm text-red-600 font-medium">✗ {error.escala}</p>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 h-full min-h-[140px] bg-white dark:bg-gray-800 rounded-lg flex flex-col">
-              <div className="flex-1 overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                  <thead className="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2">Atleta</th>
-                      <th className="px-3 py-2">Entrada</th>
-                      <th className="px-3 py-2">Inter</th>
-                      <th className="px-3 py-2">Saída</th>
-                      <th className="px-3 py-2 text-center">+1d</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {manualEscalaRows.map(row => (
-                      <tr key={row.id} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                        <td className="px-2 py-2">
-                          <input
-                            type="text"
-                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Nome"
-                            value={row.nome}
-                            onChange={(e) => updateManualRow(row.id, 'nome', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="time"
-                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
-                            value={row.entrada}
-                            onChange={(e) => updateManualRow(row.id, 'entrada', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="time"
-                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
-                            value={row.intervalo}
-                            onChange={(e) => updateManualRow(row.id, 'intervalo', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="time"
-                            className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white text-xs focus:ring-blue-500 focus:border-blue-500"
-                            value={row.saida}
-                            onChange={(e) => updateManualRow(row.id, 'saida', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                            checked={row.saidaDiaSeguinte}
-                            onChange={(e) => updateManualRow(row.id, 'saidaDiaSeguinte', e.target.checked)}
-                          />
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <button
-                            onClick={() => removeManualRow(row.id)}
-                            className="text-red-500 hover:text-red-700 transition-colors"
-                          >
-                            <LogOut className="w-4 h-4 rotate-180" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {manualEscalaRows.length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="px-6 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
-                          Nenhum atleta adicionado
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={addManualRow}
-                  className="w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <Users className="w-4 h-4" /> Adicionar Atleta
-                </button>
-              </div>
-            </div>
-          )}
+          <div
+            className={`h-full border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${dragActive.escala ? 'bg-[#D6B46A]/5 border-[#D6B46A]' : 'bg-white/[0.02] hover:bg-white/[0.04]'}`}
+            onDragEnter={(e) => setDragActive(prev => ({ ...prev, escala: true }))}
+            onDragLeave={(e) => setDragActive(prev => ({ ...prev, escala: false }))}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragActive(prev => ({ ...prev, escala: false }));
+              if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0], 'escala');
+            }}
+          >
+            <label className="block cursor-pointer w-full h-full flex flex-col items-center justify-center">
+              <Upload className="w-6 h-6 text-gray-500 group-hover:text-[#D6B46A] mb-3 transition-colors" />
+              <p className="text-xs text-gray-400 font-medium">Arraste ou clique (.xlsx)</p>
+              <input type="file" accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0], 'escala')} className="hidden" />
+            </label>
+          </div>
         </div>
       </div>
     </section>
   );
 
   const Controls = ({ diasAbreviados, fullDayNames, selectedDay, setSelectedDay, chartType, setChartType, toggleTheme, theme, setShowUploadSection }) => (
-    <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center">
-          <div className="flex bg-gray-100 dark:bg-gray-700/50 rounded-lg p-1 overflow-x-auto scrollbar-hide">
-            {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'].map((day) => {
-              const fullDay = {
-                'SEG': 'SEGUNDA',
-                'TER': 'TERÇA',
-                'QUA': 'QUARTA',
-                'QUI': 'QUINTA',
-                'SEX': 'SEXTA',
-                'SAB': 'SÁBADO',
-                'DOM': 'DOMINGO'
-              }[day];
-
-              return (
-                <button
-                  key={day}
-                  onClick={() => setSelectedDay(fullDay)}
-                  className={`
-                    py-1.5 px-3 rounded-md text-sm font-medium transition-all duration-200 whitespace-nowrap
-                    ${selectedDay === fullDay
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }
-                  `}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ChartToggleButton type="line" current={chartType} setType={setChartType} />
-          <ChartToggleButton type="bar" current={chartType} setType={setChartType} />
-          <button onClick={exportData} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2">
-            <Download className="w-4 h-4" /> Exportar
-          </button>
-          <button
-            onClick={() => setShowUploadSection(prev => !prev)}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Alterar Ficheiros</span>
-          </button>
-          <button onClick={toggleTheme} className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </button>
-        </div>
+    <div className="flex-none px-6 py-2 border-b border-white/5 bg-[#0B0F1A]/95 backdrop-blur-sm z-10 flex flex-wrap items-center justify-between gap-4 h-14">
+      <div className="flex bg-[#121620] rounded-lg p-1 border border-white/10 overflow-x-auto scrollbar-hide max-w-full">
+        {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'].map((day) => {
+          const fullDay = {
+            'SEG': 'SEGUNDA', 'TER': 'TERÇA', 'QUA': 'QUARTA', 'QUI': 'QUINTA',
+            'SEX': 'SEXTA', 'SAB': 'SÁBADO', 'DOM': 'DOMINGO'
+          }[day];
+          const isActive = selectedDay === fullDay;
+          return (
+            <button
+              key={day}
+              onClick={() => setSelectedDay(fullDay)}
+              className={`
+                px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 whitespace-nowrap tabular-nums tracking-wide
+                ${isActive ? 'bg-[#D6B46A] text-black shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}
+              `}
+            >
+              {day}
+            </button>
+          );
+        })}
       </div>
-    </section>
+
+      <div className="flex items-center gap-3 ml-auto">
+        <button onClick={() => setShowUploadSection(prev => !prev)} className="h-7 px-3 bg-[#121620] hover:bg-white/10 border border-white/10 text-gray-300 rounded-lg transition-all flex items-center gap-2 text-[10px] font-semibold">
+          <Upload className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
   );
 
-  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab }) => {
-    // --- ANOMALY DETECTION CONSTANTS ---
+  // --- HELPER: CÁLCULO DE QUEDAS CRÍTICAS (DINÂMICO) ---
+  const computeCriticalDrops = (data) => {
+    if (!data || data.length < 2) return { criticalDrops: 0, horasCriticas: [] };
+    const drops = [];
+
+    for (let i = 1; i < data.length; i++) {
+      const current = data[i];
+      const prev = data[i - 1];
+      const delta = (Number(current.conversao) || 0) - (Number(prev.conversao) || 0);
+      if (delta < 0) drops.push({ hora: `${current.hora}h`, delta });
+    }
+
+    // Ordena pelas 2 piores quedas
+    const topDrops = drops.sort((a, b) => a.delta - b.delta).slice(0, 2);
+    return {
+      criticalDrops: topDrops.length,
+      horasCriticas: topDrops.map(d => d.hora)
+    };
+  };
+
+
+
+  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab, staffRows, selectedDay }) => {
+    // --- ANOMALY DETECTION LOGIC (UNCHANGED) ---
     const MIN_FLUXO = 10;
     const STABLE_FLUXO_PCT = 0.15;
     const ALERT_DROP_PP = 2.0;
     const OPP_RISE_PP = 1.5;
 
-    // --- ANOMALY DETECTION LOGIC ---
     const conversionInsights = useMemo(() => {
       const alerts = [];
       const opportunities = [];
       if (!chartData || chartData.length < 2) return { alerts, opportunities };
-
       for (let i = 1; i < chartData.length; i++) {
         const current = chartData[i];
         const prev = chartData[i - 1];
-
-        const fluxoAtual = current.fluxo || 0; // Use 'fluxo' or 'qtdFluxo' based on chartData structure (using 'fluxo' from previous chart implementation)
+        const fluxoAtual = current.fluxo || 0;
         const fluxoPrev = prev.fluxo || 0;
-
-        // Only evaluate if traffic is significant
         if (fluxoAtual < MIN_FLUXO || fluxoPrev < 1) continue;
-
         const convAtual = current.percentualConversao || 0;
         const convPrev = prev.percentualConversao || 0;
-
         const deltaFlow = (fluxoAtual - fluxoPrev) / Math.max(1, fluxoPrev);
         const deltaConvPP = convAtual - convPrev;
-
-        // RULE: ALERT (Stable Flow but Conversion Drop)
-        // flow change >= -15% (not a massive drop in flow) AND conversion drop >= 2pp
         if (deltaFlow >= -STABLE_FLUXO_PCT && deltaConvPP <= -ALERT_DROP_PP) {
-          alerts.push({
-            hora: current.hora,
-            fluxo: fluxoAtual,
-            conv: convAtual,
-            deltaConvPP,
-            deltaFlow
-          });
+          alerts.push({ hora: current.hora, fluxo: fluxoAtual, conv: convAtual, deltaConvPP, deltaFlow });
         }
-
-        // RULE: OPPORTUNITY (Stable Flow but Conversion Rise)
-        // flow change <= 15% (not a massive spike in flow) AND conversion rise >= 1.5pp
         if (deltaFlow <= STABLE_FLUXO_PCT && deltaConvPP >= OPP_RISE_PP) {
-          opportunities.push({
-            hora: current.hora,
-            fluxo: fluxoAtual,
-            conv: convAtual,
-            deltaConvPP,
-            deltaFlow
-          });
+          opportunities.push({ hora: current.hora, fluxo: fluxoAtual, conv: convAtual, deltaConvPP, deltaFlow });
         }
       }
       return { alerts, opportunities };
     }, [chartData]);
 
+    const dailyMetrics = useMemo(() => {
+      if (!chartData || chartData.length === 0) return null;
+
+      // Quedas Críticas Dinâmicas
+      const { criticalDrops, horasCriticas } = computeCriticalDrops(chartData);
+
+      // Cálculo de Fluxo
+      const totalFlow = chartData.reduce((acc, curr) => acc + (Number(curr.fluxo) || 0), 0);
+      const maxFlowObj = chartData.reduce((max, curr) => (Number(curr.fluxo) || 0) > (Number(max.fluxo) || 0) ? curr : max, chartData[0]);
+      const maxFlow = Number(maxFlowObj.fluxo) || 0;
+      const maxFlowHour = `${maxFlowObj.hora}h`;
+      const maxFlowPct = totalFlow > 0 ? ((maxFlow / totalFlow) * 100).toFixed(1) : 0;
+
+      // Menor Cobertura
+      const validStaffData = chartData.filter(d => d.funcionarios_real > 0);
+      let minStaff = 0;
+      let minStaffHour = "Nenhum";
+
+      if (validStaffData.length > 0) {
+        const minStaffObj = validStaffData.reduce((min, curr) =>
+          curr.funcionarios_real < min.funcionarios_real ? curr : min
+          , validStaffData[0]);
+        minStaff = minStaffObj.funcionarios_real;
+        minStaffHour = `${minStaffObj.hora}h`;
+      }
+
+      const validConversions = chartData.filter(d => d.conversao > 0).map(d => d.conversao);
+      const minConversion = validConversions.length ? Math.min(...validConversions) : 0;
+
+      return { criticalDrops, horasCriticas, minConversion, maxFlow, maxFlowHour, maxFlowPct, minStaff, minStaffHour };
+    }, [chartData]);
+
     return (
-      <main className="flex flex-col lg:flex-row gap-6">
-        {/* Coluna da Esquerda: Schedule */}
-        <aside className="lg:w-[400px] lg:flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-500" /> Escala - {selectedDay}
-          </h3>
-          <div className="max-h-[400px] lg:max-h-[600px] overflow-y-auto schedule-scroll-container">
-            {dailyData.dailySchedule.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhum funcionário escalado.</p>
-            ) : (
-              <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                  <tr>
-                    <th scope="col" className="px-2 py-4 font-semibold w-2/5 lg:w-1/2">Atleta</th>
-                    <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Entrada</th>
-                    <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Intervalo</th>
-                    <th scope="col" className="px-2 py-4 font-semibold text-center w-1/5 lg:w-1/6">Saída</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dailyData.dailySchedule.map((person, idx) => (
-                    <tr key={idx} className="border-b dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 odd:bg-white/50 dark:odd:bg-gray-800/30 even:bg-black/5 dark:even:bg-black/20">
-                      <td className="px-2 py-4 font-bold text-base text-gray-900 dark:text-white whitespace-nowrap">
-                        {person.ATLETA}
-                      </td>
-                      <td className="px-2 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <LogIn className="w-4 h-4 text-blue-400" />
-                          <span className="text-blue-600 dark:text-blue-400 font-medium">{person.ENTRADA}</span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <Coffee className="w-4 h-4 text-orange-400" />
-                          <span className="text-orange-600 dark:text-orange-400 font-medium">{person.INTER || 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <LogOut className="w-4 h-4 text-green-400" />
-                          <span className="text-green-600 dark:text-green-400 font-medium">{person.SAIDA}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+      // VIEWPORT FULL HEIGHT GRID - FIXED
+      <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-6 w-full">
+
+        {/* ESQUERDA: ESCALA (Visual Refinado) */}
+        <aside className="xl:col-span-3 flex flex-col bg-[#121620]/60 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-xl overflow-hidden h-full min-w-0 transition-all duration-300 hover:border-white/10 p-4">
+          <DailyStaffList staffRows={staffRows} selectedDay={selectedDay} onTimeClick={openTimePicker} />
         </aside>
 
-        {/* Coluna da Direita: Insights + Chart */}
-        <section className="flex-1 flex flex-col gap-6">
+        {/* DIREITA: CHARTS (75% Width / 9 cols out of 12) */}
+        <section className="xl:col-span-9 flex flex-col gap-4 h-full min-h-0 min-w-0 overflow-y-auto custom-scroll pr-2">
 
-          {/* Tab Navigation */}
-          <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700">
-            <button
-              onClick={() => setActiveTab('cobertura')}
-              className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'cobertura' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-            >
-              Cobertura & Fluxo
-              {activeTab === 'cobertura' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
-            </button>
-            <button
-              onClick={() => setActiveTab('conversao')}
-              className={`pb-2 px-1 text-sm font-medium transition-colors relative ${activeTab === 'conversao' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-            >
-              Conversão Atual
-              {activeTab === 'conversao' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 dark:bg-blue-400"></span>}
-            </button>
+          {/* Main Chart (Always Visible) - DARK MODE HYBRID */}
+          <div className="w-full bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl p-4">
+            <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wide mb-4 border-l-4 border-[#D6B46A] pl-2">
+              Relatório de Capacidade vs. Demanda
+            </h3>
+
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height={400}>
+                <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="hora" tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: '#4b5563' }} dy={10} tickFormatter={(v) => `${v}h`} />
+                  <YAxis yAxisId="left" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={{ stroke: '#4b5563' }} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val} />
+                  <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={{ stroke: '#4b5563' }} domain={[0, dataMax => (dataMax > 25 ? dataMax : 25)]} />
+                  <Tooltip content={<CorporateTooltip />} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#e5e7eb' }} />
+
+                  {/* 1. FLUXO: Área Cinza Sólida */}
+                  <Area yAxisId="left" type="monotone" dataKey="fluxo" name="Fluxo Clientes" fill="#cbd5e1" stroke="#94a3b8" fillOpacity={0.2} activeDot={false} />
+
+                  {/* 2. CONVERSÃO: Barras Verdes */}
+                  <Bar yAxisId="right" dataKey="conversao" name="Conversão %" barSize={24} fill="#10b981" radius={[2, 2, 0, 0]}>
+                    <LabelList dataKey="conversao" position="top" fill="#34d399" fontSize={10} fontWeight="bold" formatter={(val) => `${val.toFixed(1)}%`} />
+                  </Bar>
+
+                  {/* 2.1 ALERTA DE QUEDAS: Dots Vermelhos sobre a conversão (LINHA TRANSPARENTE) */}
+
+                  <RechartsLine
+                    yAxisId="right"
+                    dataKey="conversao"
+                    name="Conversão %"
+                    stroke="none"
+                    dot={(props) => {
+                      const { cx, cy, payload } = props;
+                      const isCritical = dailyMetrics?.horasCriticas?.includes(`${payload.hora}h`);
+                      if (isCritical) {
+                        return <circle cx={cx} cy={cy} r={6} fill="#EF4444" stroke="white" strokeWidth={2} />;
+                      }
+                      return <circle cx={cx} cy={cy} r={3} fill="#10b981" />;
+                    }}
+                    activeDot={{ r: 6, fill: '#059669' }}
+                    legendType="none"
+                    isAnimationActive={false}
+                  />
+
+                  {/* 3. EQUIPE: Linha Curva */}
+                  <RechartsLine yAxisId="left" type="monotone" dataKey="funcionarios_visual" name="Equipe (Capacidade)" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3, fill: '#f59e0b', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#f59e0b' }} />
+
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          {activeTab === 'cobertura' && (
-            <>
-              {/* Insights lado a lado */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {insights && (
-                  <>
-                    {insights.lowestConversionHour &&
-                      <InsightCard
-                        category="funcionarios"
-                        title="Menor Conversão"
-                        text={`${insights.lowestConversionHour.hora} com ${insights.lowestConversionHour.percentualConversao}% de conversão`}
-                        isHighlighted={highlightedLine === 'percentualConversao'}
-                        onClick={() => setHighlightedLine(prev => prev === 'percentualConversao' ? null : 'percentualConversao')}
-                      />
-                    }
-                    {insights.peakFluxoHour &&
-                      <InsightCard
-                        category="fluxo"
-                        title="Maior Fluxo"
-                        text={`${insights.peakFluxoHour.hora} com ${insights.peakFluxoHour.percentualFluxo}% do total`}
-                        isHighlighted={highlightedLine === 'percentualFluxo'}
-                        onClick={() => setHighlightedLine(prev => prev === 'percentualFluxo' ? null : 'percentualFluxo')}
-                      />
-                    }
-                    {insights.understaffedHour &&
-                      <InsightCard
-                        category="funcionarios"
-                        title="Menor Cobertura"
-                        text={`${insights.understaffedHour.hora} com apenas ${insights.understaffedHour.funcionarios} funcionário(s)`}
-                        isHighlighted={highlightedLine === 'funcionarios'}
-                        onClick={() => setHighlightedLine(prev => prev === 'funcionarios' ? null : 'funcionarios')}
-                      />
-                    }
-                  </>
-                )}
-              </div>
+          {/* New KPI Section (Below Chart) - DARK MODE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 mb-8">
 
-              {/* Gráfico como destaque principal */}
-              <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col">
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-green-500" /> Análise por Hora - {selectedDay}
-                </h3>
-
-                <div id="chart-container" className="w-full h-96">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {chartType === 'line' ? (
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                        <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 1', 'dataMax + 1']} />
-                        <YAxis yAxisId="right" orientation="right" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={['dataMin - 2', 'dataMax + 2']} />
-                        <YAxis yAxisId="conversao" orientation="right" stroke="#8884d8" hide={true} domain={['dataMin - 2', 'dataMax + 2']} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                        <RechartsLine
-                          yAxisId="left"
-                          type="monotone"
-                          dataKey="funcionarios"
-                          name="Funcionários"
-                          stroke="#3b82f6"
-                          strokeWidth={highlightedLine === 'funcionarios' ? 4 : 2}
-                          strokeOpacity={highlightedLine && highlightedLine !== 'funcionarios' ? 0.25 : 1}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                        <RechartsLine
-                          yAxisId="conversao"
-                          type="monotone"
-                          dataKey="percentualConversao"
-                          name="% Conversão"
-                          stroke="#8884d8"
-                          strokeWidth={highlightedLine === 'percentualConversao' ? 4 : 2}
-                          strokeOpacity={highlightedLine && highlightedLine !== 'percentualConversao' ? 0.25 : 1}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                        <RechartsLine
-                          yAxisId="right"
-                          type="monotone"
-                          dataKey="percentualFluxo"
-                          name="Fluxo (%)"
-                          stroke="#ffc658"
-                          strokeWidth={highlightedLine === 'percentualFluxo' ? 4 : 2}
-                          strokeOpacity={highlightedLine && highlightedLine !== 'percentualFluxo' ? 0.25 : 1}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                    ) : (
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                        <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                        <Bar yAxisId="left" dataKey="funcionarios" name="Funcionários" fill="#3b82f6" />
-                        <Bar yAxisId="right" dataKey="percentualCupons" name="% Cupons" fill="#10b981" />
-                        <Bar yAxisId="right" dataKey="percentualFluxo" name="Fluxo (%)" fill="#ffc658" />
-                      </BarChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'conversao' && (
-            <div className="flex-1 flex flex-col gap-6">
-
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Alerts Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-l-4 border-l-red-500">
-                  <h4 className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                    <AlertCircle className="w-5 h-5 text-red-500" />
-                    Alertas de Queda ({conversionInsights.alerts.length})
-                  </h4>
-                  {conversionInsights.alerts.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum alerta detectado.</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {conversionInsights.alerts.map((alert, idx) => (
-                        <div key={idx} className="text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded">
-                          <span className="font-bold text-red-700 dark:text-red-300">{alert.hora}</span>:
-                          <span className="mx-2 text-gray-600 dark:text-gray-400">Fluxo {alert.fluxo}</span>
-                          <span className="font-medium text-red-600 dark:text-red-400">Conv {alert.conv}% ({alert.deltaConvPP.toFixed(1)}pp)</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Opportunities Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-l-4 border-l-green-500">
-                  <h4 className="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                    <TrendingUp className="w-5 h-5 text-green-500" />
-                    Oportunidades ({conversionInsights.opportunities.length})
-                  </h4>
-                  {conversionInsights.opportunities.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma oportunidade detectada.</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {conversionInsights.opportunities.map((opp, idx) => (
-                        <div key={idx} className="text-sm bg-green-50 dark:bg-green-900/20 p-2 rounded">
-                          <span className="font-bold text-green-700 dark:text-green-300">{opp.hora}</span>:
-                          <span className="mx-2 text-gray-600 dark:text-gray-400">Fluxo {opp.fluxo}</span>
-                          <span className="font-medium text-green-600 dark:text-green-400">Conv {opp.conv}% (+{opp.deltaConvPP.toFixed(1)}pp)</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 flex flex-col min-h-[400px]">
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-purple-500" /> Conversão vs Fluxo
-                </h3>
-                <div className="w-full h-96">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#2D3748' : '#E2E8F0'} />
-                      <XAxis dataKey="hora" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                      <YAxis yAxisId="left" orientation="left" stroke="#ffc658" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} label={{ value: 'Fluxo (Qtd)', angle: -90, position: 'insideLeft', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#8884d8" tick={{ fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} domain={[0, 100]} label={{ value: 'Conversão (%)', angle: 90, position: 'insideRight', fill: theme === 'dark' ? '#A0AEC0' : '#4A5568' }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend wrapperStyle={{ color: theme === 'dark' ? '#E2E8F0' : '#1A202C' }} />
-                      <Bar yAxisId="left" dataKey="fluxo" name="Fluxo (Qtd)" fill="#ffc658" barSize={30} opacity={0.6} />
-                      <RechartsLine yAxisId="right" type="monotone" dataKey="percentualConversao" name="Conversão (%)" stroke="#8884d8" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-
-                      {/* ALERT MARKERS */}
-                      {conversionInsights.alerts.map((alert, idx) => (
-                        <ReferenceDot
-                          key={`alert-${idx}`}
-                          yAxisId="right"
-                          x={alert.hora}
-                          y={alert.conv}
-                          r={6}
-                          fill="red"
-                          stroke="white"
-                          strokeWidth={2}
-                          isFront={true}
-                        />
-                      ))}
-
-                      {/* OPPORTUNITY MARKERS */}
-                      {conversionInsights.opportunities.map((opp, idx) => (
-                        <ReferenceDot
-                          key={`opp-${idx}`}
-                          yAxisId="right"
-                          x={opp.hora}
-                          y={opp.conv}
-                          r={6}
-                          fill="#10b981"
-                          stroke="white"
-                          strokeWidth={2}
-                          isFront={true}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
+            {/* Card 1: Alerta de Quedas (Red Border + Hours List) */}
+            <div className="bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-xl p-4 flex flex-col border-l-4 border-red-500 shadow-lg">
+              <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Alerta de Quedas</span>
+              <div className="flex flex-col mt-2">
+                <span className="text-2xl font-bold text-red-500">{dailyMetrics?.criticalDrops || 0}</span>
+                <div className="text-xs text-red-300 mt-1 font-mono">
+                  Horários: {dailyMetrics?.horasCriticas?.length > 0 ? dailyMetrics.horasCriticas.join(', ') : "Nenhum"}
                 </div>
               </div>
             </div>
-          )}
+
+            {/* Card 2: Menor Conversão */}
+            <div className="bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-lg flex flex-col">
+              <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Menor Conversão</span>
+              <div className="mt-2">
+                <span className="text-2xl font-bold text-gray-200">
+                  {dailyMetrics?.minConversion ? dailyMetrics.minConversion.toFixed(1) : 0}%
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Pico de Fluxo */}
+            <div className="bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-xl p-4 shadow-lg flex flex-col">
+              <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Pico de Fluxo</span>
+              <div className="flex flex-col mt-2">
+                <span className="text-2xl font-bold text-[#3B82F6]">{dailyMetrics?.maxFlow || 0}</span>
+                <span className="text-xs text-[#3B82F6]/70 mt-1 font-mono">
+                  Pico: {dailyMetrics?.maxFlowHour} ({dailyMetrics?.maxFlowPct}% do total)
+                </span>
+              </div>
+            </div>
+
+            {/* Card 4: Menor Cobertura (Pessoas) - Gold Border */}
+            <div className="bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-xl p-4 flex flex-col border-l-4 border-[#D6B46A] shadow-lg">
+              <span className="text-gray-400 text-xs font-medium uppercase tracking-wider">Menor Cobertura (Pessoas)</span>
+              <div className="flex flex-col mt-2">
+                <span className="text-2xl font-bold text-[#D6B46A]">{dailyMetrics?.minStaff || 0}</span>
+                <span className="text-xs text-[#D6B46A]/70 mt-1 font-mono">
+                  Horário: {dailyMetrics?.minStaffHour || "Nenhum"}
+                </span>
+              </div>
+            </div>
+
+          </div>
+
         </section>
+
+        {/* Renderiza o Modal de Hora fora do fluxo do aside para não cortar com overflow */}
+        <TimePickerModal
+          isOpen={pickerState.isOpen}
+          onClose={() => setPickerState({ ...pickerState, isOpen: false })}
+          onSelect={handleTimePickerSelect}
+          initialValue={pickerState.value}
+        />
+
       </main>
     );
   };
 
+  const ChartToggleButton = ({ type, current, setType }) => {
+    const isActive = type === current;
+    const Icon = type === 'line' ? Activity : BarChart3;
+    return (
+      <button
+        onClick={() => setType(type)}
+        className={`p-1.5 rounded transition-all ${isActive ? 'bg-[#D6B46A] text-black shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+      >
+        <Icon className="w-4 h-4" />
+      </button>
+    );
+  };
 
-  const CustomTooltip = ({ active, payload, label }) => {
+  const InsightCard = ({ category, title, text, isHighlighted, onClick }) => {
+    const styleMap = {
+      alerta: "border-l-red-500",
+      destaque: "border-l-[#D6B46A]",
+      neutro: "border-l-blue-500"
+    };
+
+    return (
+      <div
+        className={`bg-[#121620]/40 backdrop-blur-md rounded-lg p-3 cursor-pointer border-l-2 border-t border-r border-b border-t-white/5 border-r-white/5 border-b-white/5 ${styleMap[category] || 'border-l-gray-500'} hover:bg-white/5 transition-all duration-300 group ${isHighlighted ? 'ring-1 ring-white/20' : ''}`}
+        onClick={onClick}
+      >
+        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-0.5 group-hover:text-gray-300 transition-colors">{title}</p>
+        <p className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors tabular-nums">{text}</p>
+      </div>
+    );
+  };
+
+  const CorporateTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white dark:bg-gray-700 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600">
-          <p className="font-semibold text-gray-800 dark:text-gray-100">{label}</p>
-          {payload.map((entry, index) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2).replace('.', ',') : entry.value}
-              {entry.name.includes('%') ? '%' : ''}
-            </p>
-          ))}
+        <div className="bg-[#1E293B]/90 backdrop-blur-md border border-white/10 p-2 shadow-xl text-xs font-sans rounded-lg">
+          <p className="font-bold text-gray-100 border-b border-white/10 mb-1 pb-1">{label}h</p>
+          {payload.map((entry, index) => {
+            if (entry.dataKey === 'funcionarios_visual') {
+              return (
+                <p key={index} className="text-gray-200 font-semibold">
+                  <span style={{ color: entry.color }}>■ </span>
+                  Equipe: {entry.payload.funcionarios_real} pessoas
+                </p>
+              );
+            }
+            if (entry.dataKey === 'pontoAlerta') return null; // Não mostrar alerta no tooltip pois é visual
+            const prefix = entry.name === 'Conversão %' ? '' : '';
+            const suffix = entry.name === 'Conversão %' ? '%' : '';
+            return (
+              <p key={index} className="text-gray-300">
+                <span style={{ color: entry.color }}>■ </span>
+                {entry.name}: {prefix}{entry.value}{suffix}
+              </p>
+            );
+          })}
         </div>
       );
     }
@@ -966,153 +935,116 @@ const Dashboard = () => {
 
   const UploadBox = ({ type, title, onUpload, onDrag, onDrop, dragActiveState, data, errorState }) => (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-all ${dragActiveState ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-gray-700' : ''}`}
+      className={`bg-[#121620]/60 backdrop-blur-2xl border rounded-2xl shadow-xl p-6 transition-all duration-300 flex flex-col items-center justify-center h-[300px] ${dragActiveState ? 'border-[#D6B46A] bg-[#D6B46A]/5' : 'border-white/5 hover:border-white/10'}`}
       onDragEnter={(e) => onDrag(e, type)}
       onDragLeave={(e) => onDrag(e, type)}
       onDragOver={(e) => onDrag(e, type)}
       onDrop={(e) => onDrop(e, type)}
     >
-      <label className="block cursor-pointer">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{title}</h3>
-          <Upload className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+      <label className="block cursor-pointer text-center w-full">
+        <div className="w-12 h-12 rounded-xl bg-white/5 mx-auto mb-4 flex items-center justify-center">
+          <Upload className={`w-6 h-6 ${dragActiveState ? 'text-[#D6B46A]' : 'text-gray-500'}`} />
         </div>
-        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
-          <Upload className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Arraste aqui ou clique para selecionar</p>
-          <p className="text-xs text-gray-500 dark:text-gray-500">Arquivo .xlsx ou .xls</p>
-        </div>
+        <h3 className="text-lg font-bold text-white tracking-tight mb-1">{title}</h3>
+        {data.length > 0 && !errorState ? (
+          <div className="mt-2 bg-green-500/10 text-green-400 px-3 py-1 rounded-full text-xs font-bold inline-flex items-center tabular-nums">
+            ✓ {data.length} Regs
+          </div>
+        ) : errorState ? (
+          <div className="mt-2 bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-xs font-bold">
+            {errorState}
+          </div>
+        ) : (
+          <p className="text-gray-500 text-xs">Arraste ou clique (.xlsx)</p>
+        )}
         <input type="file" accept=".xlsx,.xls" onChange={(e) => onUpload(e, type)} className="hidden" />
-        {data.length > 0 && !errorState && (
-          <p className="mt-3 text-sm text-green-600 font-medium">✓ {data.length} registros carregados</p>
-        )}
-        {errorState && (
-          <p className="mt-3 text-sm text-red-600 font-medium">✗ {errorState}</p>
-        )}
       </label>
     </div>
   );
 
-  // --- MAIN JSX ---
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 font-sans transition-colors">
+    <div className="min-h-screen w-full bg-[#0B0F1A] flex flex-col">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02] z-0" />
       <style jsx global>{`
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-        
-        /* Estilização da barra de rolagem para o container da escala */
-        .schedule-scroll-container::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-
-        .schedule-scroll-container::-webkit-scrollbar-track {
-          background: #2d3748;
-          border-radius: 10px;
-        }
-
-        .schedule-scroll-container::-webkit-scrollbar-thumb {
-          background-color: #4a5568;
-          border-radius: 10px;
-          border: 2px solid #2d3748;
-        }
-
-        .schedule-scroll-container::-webkit-scrollbar-thumb:hover {
-          background-color: #718096;
-        }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.01); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.5); cursor: pointer; }
       `}</style>
 
-      <div className="max-w-7xl mx-auto">
+      {/* O dashboardRef agora deve ocupar 100% sem margens laterais */}
+      <div ref={dashboardRef} className="w-full flex-1 flex flex-col">
         <Header />
 
         {loading && <LoadingOverlay />}
 
-        {/* --- LÓGICA DE RENDERIZAÇÃO UNIFICADA E CORRETA --- */}
-
-        {/* Se NÃO houver dados de cupons, mostra apenas a seção de upload */}
-        {!cuponsData.length && (
-          <UploadSection
-            processFile={processFile}
-            dragActive={dragActive}
-            setDragActive={setDragActive}
-            cuponsData={cuponsData}
-            escalaData={escalaData}
-            error={error}
-            escalaManualMode={escalaManualMode}
-            setEscalaManualMode={setEscalaManualMode}
-            manualEscalaRows={manualEscalaRows}
-            addManualRow={addManualRow}
-            updateManualRow={updateManualRow}
-            removeManualRow={removeManualRow}
-          />
-        )}
-
-        {/* Se HOUVER dados de cupons, mostra os controles e o conteúdo principal */}
-        {cuponsData.length > 0 && (
-          <>
+        {!cuponsData.length ? (
+          <div className="flex-1 flex items-center justify-center p-12">
+            <UploadSection
+              processFile={processFile}
+              dragActive={dragActive}
+              setDragActive={setDragActive}
+              cuponsData={cuponsData}
+              error={error}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col min-h-0">
             <Controls
               diasAbreviados={['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM']}
-              fullDayNames={{
-                'SEG': 'SEGUNDA',
-                'TER': 'TERÇA',
-                'QUA': 'QUARTA',
-                'QUI': 'QUINTA',
-                'SEX': 'SEXTA',
-                'SAB': 'SÁBADO',
-                'DOM': 'DOMINGO'
-              }}
+              fullDayNames={{ 'SEG': 'SEGUNDA', 'TER': 'TERÇA', 'QUA': 'QUARTA', 'QUI': 'QUINTA', 'SEX': 'SEXTA', 'SAB': 'SÁBADO', 'DOM': 'DOMINGO' }}
               selectedDay={selectedDay}
               setSelectedDay={setSelectedDay}
               chartType={chartType}
               setChartType={setChartType}
-              toggleTheme={toggleTheme}
+              toggleTheme={() => { }}
               theme={theme}
               setShowUploadSection={setShowUploadSection}
             />
 
-            {/* A seção de upload retrátil SÓ aparece se o estado for true */}
-            {showUploadSection && (
+            {/* Conteúdo principal colado nas bordas ou com padding controlado */}
+            <main className="flex-1 w-full overflow-y-auto custom-scroll">
+              <MainContent
+                dailyData={dailyData}
+                insights={insights}
+                chartData={chartData}
+                chartType={chartType}
+                theme={theme}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                staffRows={staffRows}
+                selectedDay={selectedDay}
+              />
+              <div className="px-6 pb-10">
+                <WeeklyScaleView staffRows={staffRows} onTimeClick={openTimePicker} />
+              </div>
+            </main>
+          </div>
+        )}
+
+        {/* MODAL (Renderizado via Portal ou Fixed - aqui dentro do container relativo também funciona se for fixed screen) */}
+        {showUploadSection && (
+          <div className="absolute inset-0 z-50 bg-[#050608]/90 backdrop-blur-sm flex items-center justify-center p-12 rounded-3xl">
+            <div className="relative w-full max-w-5xl mx-auto">
+              <button onClick={() => setShowUploadSection(false)} className="absolute -top-10 right-0 text-white hover:text-[#D6B46A]">Fechar</button>
               <UploadSection
                 processFile={processFile}
                 dragActive={dragActive}
                 setDragActive={setDragActive}
                 cuponsData={cuponsData}
-                escalaData={escalaData}
                 error={error}
-                escalaManualMode={escalaManualMode}
-                setEscalaManualMode={setEscalaManualMode}
-                manualEscalaRows={manualEscalaRows}
-                addManualRow={addManualRow}
-                updateManualRow={updateManualRow}
-                removeManualRow={removeManualRow}
               />
-            )}
-
-            <MainContent
-              dailyData={dailyData}
-              insights={insights}
-              chartData={chartData}
-              chartType={chartType}
-              theme={theme}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-            />
-          </>
-        )}
-
-        {/* Empty State - apenas quando não há dados de cupons E não está carregando */}
-        {!cuponsData.length && !loading && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
-            <Upload className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Carregue os arquivos para começar</h3>
-            <p className="text-gray-500 dark:text-gray-400">Faça upload do arquivo FLUXO para visualizar os dados. O arquivo ESCALA é opcional.</p>
+            </div>
           </div>
         )}
+
+        {/* PRINT TARGET (OFF-SCREEN) */}
+        <div className="fixed -left-[99999px] top-0" data-print-target>
+          <WeeklyScalePrint ref={printRef} staffRows={staffRows} theme={printTheme} />
+        </div>
+
       </div>
     </div>
   );
@@ -1120,51 +1052,363 @@ const Dashboard = () => {
 
 // --- HELPER COMPONENTS ---
 
-const ChartToggleButton = ({ type, current, setType }) => {
-  const isActive = type === current;
-  const Icon = type === 'line' ? LineChartIcon : BarChart3;
-  return (
-    <button
-      onClick={() => setType(type)}
-      className={`p-2 rounded-lg transition-colors ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
-    >
-      <Icon className="w-5 h-5" />
-    </button>
-  );
-};
+
 
 const InsightCard = ({ category, title, text, isHighlighted, onClick }) => {
-  const colorMap = {
-    cupons: {
-      wrapper: "bg-green-50 dark:bg-green-900/40 text-green-900 dark:text-green-200",
-      icon: "text-green-600 dark:text-green-400"
-    },
-    fluxo: {
-      wrapper: "bg-yellow-50 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-200",
-      icon: "text-yellow-600 dark:text-yellow-400"
-    },
-    funcionarios: {
-      wrapper: "bg-blue-50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200",
-      icon: "text-blue-600 dark:text-blue-400"
-    }
-  };
-
-  const styles = colorMap[category] || colorMap.cupons;
+  const styleMap = {
+    alerta: "border-l-red-500",
+    destaque: "border-l-[#D6B46A]",
+    neutro: "border-l-blue-500"
+  }
 
   return (
     <div
-      className={`rounded-lg p-4 cursor-pointer transition-all duration-200 hover:scale-105 ${styles.wrapper} ${isHighlighted ? 'ring-2 ring-white/80 shadow-lg' : ''}`}
+      className={`bg-[#121620]/40 backdrop-blur-md rounded-lg p-3 cursor-pointer border-l-2 border-t border-r border-b border-t-white/5 border-r-white/5 border-b-white/5 ${styleMap[category] || 'border-l-gray-500'} hover:bg-white/5 transition-all duration-300 group ${isHighlighted ? 'ring-1 ring-white/20' : ''}`}
       onClick={onClick}
     >
-      <div className="flex items-start gap-3">
-        <AlertCircle className={`w-5 h-5 ${styles.icon} mt-0.5 flex-shrink-0`} />
-        <div>
-          <p className="text-sm font-semibold">{title}</p>
-          <p className="text-sm">{text}</p>
-        </div>
-      </div>
+      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-0.5 group-hover:text-gray-300 transition-colors">{title}</p>
+      <p className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors tabular-nums">{text}</p>
     </div>
   );
 }
 
+
+// --- DAILY STAFF LIST (Fixed Height Scrollable Sidebar) ---
+const DailyStaffList = ({ staffRows, selectedDay, onTimeClick }) => {
+  const colabsDoDia = staffRows.filter(r => r.dia === selectedDay && r.nome !== '' && r.entrada);
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Cabeçalho Fixo */}
+      <div className="mb-4 flex justify-between items-center">
+        <h3 className="text-lg font-black text-white uppercase tracking-tighter">
+          Escala: <span className="text-[#D6B46A]">{selectedDay}</span>
+        </h3>
+        <span className="text-[10px] font-bold bg-white/5 px-2 py-1 rounded text-gray-400">
+          {colabsDoDia.length} TOTAL
+        </span>
+      </div>
+
+      {/* Área de Lista com Scroll - Altura limitada para alinhar com o gráfico */}
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" style={{ maxHeight: '450px' }}>
+        <div className="grid grid-cols-1 gap-2">
+          {colabsDoDia.map((colab) => (
+            <div key={colab.id} className="bg-white/[0.03] border border-white/5 p-3 rounded-xl flex justify-between items-center hover:border-white/10 transition-all">
+              <div className="flex flex-col min-w-0 flex-1 mr-2">
+                <input
+                  type="text"
+                  value={colab.nome}
+                  readOnly
+                  className="bg-transparent text-xs font-black text-gray-200 uppercase focus:outline-none w-full truncate"
+                />
+                <span className="text-[10px] text-gray-500 font-bold">{colab.cargo || 'COLABORADOR'}</span>
+              </div>
+
+              <div className="flex gap-3 text-xs font-black tabular-nums shrink-0">
+                {/* ENTRADA */}
+                <div
+                  className="flex flex-col items-end cursor-pointer group"
+                  onClick={() => onTimeClick(colab.id, 'entrada', colab.entrada)}
+                >
+                  <span className="text-[9px] text-gray-600 uppercase group-hover:text-[#D6B46A] transition-colors">Entrada</span>
+                  <span className={`transition-colors ${colab.entrada ? 'text-gray-300 group-hover:text-white' : 'text-gray-700'}`}>
+                    {colab.entrada || '--:--'}
+                  </span>
+                </div>
+
+                {/* INTERVALO */}
+                <div
+                  className="flex flex-col items-end cursor-pointer group"
+                  onClick={() => onTimeClick(colab.id, 'intervalo', colab.intervalo)}
+                >
+                  <span className="text-[9px] text-gray-600 uppercase group-hover:text-[#D6B46A] transition-colors">Inter</span>
+                  <span className={`transition-colors ${colab.intervalo ? 'text-gray-400 group-hover:text-white' : 'text-gray-700'}`}>
+                    {colab.intervalo || '--:--'}
+                  </span>
+                </div>
+
+                {/* SAÍDA */}
+                <div
+                  className="flex flex-col items-end cursor-pointer group"
+                  onClick={() => onTimeClick(colab.id, 'saida', colab.saida)}
+                >
+                  <span className="text-[9px] text-[#D6B46A]/50 uppercase group-hover:text-[#D6B46A] transition-colors">Saída</span>
+                  <span className={`transition-colors ${colab.saida ? 'text-[#D6B46A] group-hover:text-[#fae8b6]' : 'text-gray-700'}`}>
+                    {colab.saida || '--:--'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// --- WEEKLY SCALE VIEW (Simple Funil 4+3) ---
+const WeeklyScaleView = ({ staffRows, onTimeClick }) => {
+  const [localTheme, setLocalTheme] = useState('dark');
+  const dias = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'];
+
+  // Sync local theme with global print theme via event or callback (simplified here by just emitting event)
+  const handleGenerate = (selectedTheme) => {
+    // We need to update the parent state first, wait for render, then capture.
+    // For simplicity, we'll dispatch an event with the theme payload.
+    window.dispatchEvent(new CustomEvent('update-print-theme', { detail: selectedTheme }));
+    // Small delay to allow state update before capture
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('generate-weekly-image'));
+    }, 100);
+  };
+
+  return (
+    <div className="p-8 bg-[#121620]/60 backdrop-blur-xl border border-white/10 rounded-[2rem] relative group/weekly">
+      <div className="absolute top-8 right-8 opacity-0 group-hover/weekly:opacity-100 transition-all flex items-center gap-2 bg-[#0B0F1A] p-1.5 rounded-xl border border-white/10 shadow-xl transform translate-y-2 group-hover/weekly:translate-y-0">
+        <div className="flex bg-white/5 p-0.5 rounded-lg border border-white/5">
+          <button
+            onClick={() => setLocalTheme('light')}
+            className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${localTheme === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-white'}`}
+          >
+            Light
+          </button>
+          <button
+            onClick={() => setLocalTheme('dark')}
+            className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${localTheme === 'dark' ? 'bg-[#D6B46A] text-black shadow-sm' : 'text-gray-500 hover:text-white'}`}
+          >
+            Dark
+          </button>
+        </div>
+        <div className="w-px h-4 bg-white/10 mx-1"></div>
+        <button
+          id="btn-gen-img"
+          onClick={() => handleGenerate(localTheme)}
+          className="px-3 py-1.5 rounded-lg bg-[#D6B46A] text-black font-black hover:bg-[#c4a055] transition text-[10px] uppercase tracking-wider flex items-center gap-1.5"
+        >
+          <Download className="w-3 h-3" />
+          Baixar Imagem
+        </button>
+      </div>
+      <h3 className="text-xl font-black text-white uppercase tracking-[0.3em] text-center mb-10">Escala Semanal</h3>
+      <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {dias.slice(0, 4).map(dia => <SimpleDayCard key={dia} dia={dia} staffRows={staffRows} onTimeClick={onTimeClick} />)}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mx-auto w-full">
+          {dias.slice(4).map(dia => <SimpleDayCard key={dia} dia={dia} staffRows={staffRows} onTimeClick={onTimeClick} />)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Sub-componente Simples para o Funil Semanal
+const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
+  const colabsDoDia = staffRows.filter(r => r.dia === dia && r.nome !== '' && r.entrada);
+
+  return (
+    <div className="bg-[#0B0F1A]/80 border border-white/10 rounded-2xl overflow-hidden flex flex-col shadow-lg hover:border-[#D6B46A]/40 transition-all duration-500 group">
+      <div className="bg-gradient-to-r from-[#D6B46A]/20 to-transparent px-5 py-3 border-b border-white/10">
+        <span className="text-sm font-black text-[#D6B46A] tracking-widest uppercase">{dia}</span>
+      </div>
+
+      <div className="p-4 flex-1">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="text-[10px] text-gray-500 font-black uppercase tracking-tighter border-b border-white/5">
+              <th className="pb-2">Atleta</th>
+              <th className="pb-2 text-center">E</th>
+              <th className="pb-2 text-center">I</th>
+              <th className="pb-2 text-center">S</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.03]">
+            {colabsDoDia.length > 0 ? colabsDoDia.map((colab) => (
+              <tr key={colab.id} className="hover:bg-white/[0.02] transition-colors">
+                <td className="py-2.5 font-bold text-gray-200 text-xs truncate max-w-[80px] uppercase">{colab.nome}</td>
+                <td
+                  className="py-2.5 text-center text-gray-400 text-xs font-bold tabular-nums cursor-pointer hover:text-white transition-colors"
+                  onClick={onTimeClick ? () => onTimeClick(colab.id, 'entrada', colab.entrada) : undefined}
+                >
+                  {colab.entrada || '--'}
+                </td>
+                <td
+                  className="py-2.5 text-center text-gray-500 text-xs font-bold tabular-nums cursor-pointer hover:text-white transition-colors"
+                  onClick={onTimeClick ? () => onTimeClick(colab.id, 'intervalo', colab.intervalo) : undefined}
+                >
+                  {colab.intervalo || '-'}
+                </td>
+                <td
+                  className="py-2.5 text-center text-[#D6B46A] text-xs font-black tabular-nums cursor-pointer hover:text-[#fae8b6] transition-colors"
+                  onClick={onTimeClick ? () => onTimeClick(colab.id, 'saida', colab.saida) : undefined}
+                >
+                  {colab.saida}{colab.saidaDiaSeguinte ? '⁺¹' : ''}
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan="4" className="py-8 text-center text-gray-700 text-[10px] font-bold uppercase tracking-widest">Folga Geral</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 export default Dashboard;
+
+// --- EXPORTAR ESCALA SEMANAL (PRINT) ---
+const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
+  const diasTop = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA'];
+  const diasBottom = ['SEXTA', 'SÁBADO', 'DOMINGO'];
+
+  const isDark = theme === 'dark';
+
+  const containerStyle = isDark
+    ? "bg-[#070A10] text-white"
+    : "bg-white text-slate-900";
+
+  const bgImage = isDark
+    ? 'radial-gradient(circle at 50% 0%, rgba(214, 180, 106, 0.08), transparent 70%)'
+    : 'radial-gradient(circle at 50% 0%, rgba(0, 0, 0, 0.03), transparent 70%)';
+
+  const logoStyle = isDark
+    ? "text-[#D6B46A] border-[#D6B46A]/20 bg-[#D6B46A]/5"
+    : "text-slate-800 border-slate-300 bg-slate-100";
+
+  return (
+    <div
+      ref={ref}
+      className={`w-[1280px] p-8 flex flex-col gap-6 ${containerStyle} min-h-screen`}
+      style={{
+        backgroundImage: bgImage,
+        height: 'max-content', // Allow growth
+        minHeight: '720px'
+      }}
+    >
+      <div className="flex items-center justify-between mb-4 px-4">
+        <h3 className={`text-2xl font-black uppercase tracking-[0.3em] ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          Escala Semanal
+        </h3>
+        <div className={`text-sm font-bold uppercase tracking-widest border px-3 py-1 rounded-lg ${logoStyle}`}>
+          DataVerse Pro
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-6 items-start">
+        {diasTop.map(dia => <PrintDayCard key={dia} dia={dia} staffRows={staffRows} theme={theme} />)}
+      </div>
+      <div className="flex justify-center gap-6 w-full items-start">
+        <div className="grid grid-cols-3 gap-6 w-3/4">
+          {diasBottom.map(dia => <PrintDayCard key={dia} dia={dia} staffRows={staffRows} theme={theme} />)}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const toMinutes = (t) => {
+  if (!t || typeof t !== 'string' || !t.includes(':')) return 0;
+  const [h, m] = t.split(':');
+  const hh = Number(h);
+  const mm = Number(m);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0;
+  return hh * 60 + mm;
+};
+
+const PrintDayCard = ({ dia, staffRows, theme }) => {
+  const isDark = theme === 'dark';
+
+  const colabsDoDia = useMemo(() => {
+    return staffRows
+      .filter(r => r.dia === dia && r.nome && r.entrada)
+      .sort((a, b) => toMinutes(a.entrada) - toMinutes(b.entrada));
+  }, [staffRows, dia]);
+
+  const colabsFolga = useMemo(() => {
+    return staffRows
+      .filter(r => r.dia === dia && r.nome && !r.entrada)
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [staffRows, dia]);
+
+  const cardBg = isDark ? "bg-[#0B0F1A] border-white/10" : "bg-white border-slate-200 shadow-sm";
+  const headerBg = isDark ? "bg-white/[0.03] border-white/5" : "bg-slate-50 border-slate-100";
+  const titleColor = isDark ? "text-[#D6B46A]" : "text-slate-900";
+  const countBadge = isDark ? "bg-white/5 text-gray-500" : "bg-slate-200 text-slate-600";
+
+  // Table Styles
+  const thStyle = `pb-2 text-[9px] font-black uppercase tracking-tighter ${isDark ? 'text-gray-600' : 'text-slate-400'}`;
+  const tdBase = "py-1.5 text-[10px] font-bold tabular-nums align-middle";
+  const nameStyle = `font-bold uppercase truncate max-w-[90px] ${isDark ? 'text-gray-200' : 'text-slate-700'}`;
+  const timeStyle = isDark ? "text-gray-400" : "text-slate-500";
+  const saidaStyle = isDark ? "text-[#D6B46A]" : "text-slate-900";
+  const borderBottom = isDark ? "border-white/[0.04]" : "border-slate-100";
+  const emptyText = isDark ? "text-gray-700" : "text-slate-400";
+
+  // Footer Styles
+  const footerBg = isDark ? "bg-white/[0.02] border-white/5" : "bg-slate-50 border-slate-100";
+  const footerTitle = isDark ? "text-gray-600" : "text-slate-400";
+  const footerName = isDark ? "text-gray-500" : "text-slate-500";
+
+  return (
+    <div className={`${cardBg} border rounded-xl overflow-hidden shadow-xl flex flex-col h-full`}>
+      <div className={`${headerBg} border-b py-2 px-4 flex justify-between items-center bg-opacity-50`}>
+        <span className={`${titleColor} font-black tracking-widest uppercase text-xs`}>{dia}</span>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${countBadge}`}>
+          {colabsDoDia.length}
+        </span>
+      </div>
+
+      <div className="p-3 flex-1 min-h-[100px]">
+        <table className="w-full text-left table-fixed">
+          <thead>
+            <tr className={isDark ? "border-b border-white/5" : "border-b border-slate-100"}>
+              <th className={`${thStyle} w-[35%]`}>Atleta</th>
+              <th className={`${thStyle} text-center w-[20%]`}>E</th>
+              <th className={`${thStyle} text-center w-[20%]`}>I</th>
+              <th className={`${thStyle} text-center w-[25%]`}>S</th>
+            </tr>
+          </thead>
+          <tbody className={`divide-y ${isDark ? 'divide-white/[0.02]' : 'divide-slate-50'}`}>
+            {colabsDoDia.length > 0 ? colabsDoDia.map((colab) => (
+              <tr key={colab.id} className="group">
+                <td className={`${tdBase} ${nameStyle} py-2`}>
+                  {colab.nome}
+                </td>
+                <td className={`${tdBase} text-center ${timeStyle}`}>
+                  {colab.entrada || '--'}
+                </td>
+                <td className={`${tdBase} text-center ${timeStyle}`}>
+                  {colab.intervalo || '-'}
+                </td>
+                <td className={`${tdBase} text-center ${saidaStyle}`}>
+                  {colab.saida}{colab.saidaDiaSeguinte ? '⁺¹' : ''}
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan="4" className={`py-8 text-center text-[10px] font-bold uppercase tracking-widest ${emptyText}`}>
+                  Sem Escala
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {colabsFolga.length > 0 && (
+        <div className={`mt-auto border-t px-4 py-3 ${footerBg}`}>
+          <h4 className={`text-[9px] font-black uppercase tracking-widest mb-2 opacity-70 ${footerTitle}`}>Folgando</h4>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {colabsFolga.map(c => (
+              <span key={c.id} className={`text-[9px] font-bold uppercase opacity-80 ${footerName}`}>{c.nome}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

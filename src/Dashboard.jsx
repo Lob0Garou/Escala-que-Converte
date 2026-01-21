@@ -496,8 +496,15 @@ const Dashboard = () => {
     const maxFluxo = Math.max(...basicData.map(d => Number(d.fluxo) || 0));
     const maxStaff = Math.max(...basicData.map(d => Number(d.funcionarios) || 0)) || 1;
 
-    // Fator de Escala: Quanto vale 1 funcionário na escala visual do Fluxo
-    const scaleFactor = maxFluxo / maxStaff;
+    // Fator de Escala: Quanto vale 1 funcionário na escala visual do Fluxo (Agora baseada em Percentual, ex: 0-25%)
+    // Se o pico de fluxo é 15% e tenho 5 funcionários, scaleFactor = 3. 
+    // Funcionario visual = 5 * 3 = 15 (que bate com o pico do fluxo no gráfico)
+    const maxPercentualFluxo = Math.max(...basicData.map(d => Number(d.percentualFluxo) || 0));
+    // Garantir que não seja 0 para evitar divisão por zero
+    const safeMaxPct = maxPercentualFluxo === 0 ? 1 : maxPercentualFluxo;
+
+    // Fator de Escala para alinhar a curva de equipe com a curva de fluxo percentual
+    const scaleFactor = safeMaxPct / maxStaff;
 
     return basicData.map(item => ({
       ...item,
@@ -506,12 +513,12 @@ const Dashboard = () => {
       conversao: Number(item.conversao),
       funcionarios_real: Number(item.funcionarios),
 
-      // Dado Visual (Inflado)
+      // Dado Visual (Inflado para corresponder à escala de %)
       funcionarios_visual: Number(item.funcionarios) * scaleFactor,
 
       // --- PONTO CRÍTICO (VISUAL ALERT) ---
-      // Se fluxo > 50 e conversão < 10, marca o ponto exatamente no pico do fluxo
-      pontoCritico: (Number(item.fluxo) > 50 && Number(item.conversao) < 10) ? Number(item.fluxo) : null
+      // Se fluxo > 50 (absoluto) e conversão < 10, marca o ponto exatamente no pico do fluxo (PERCENTUAL)
+      pontoCritico: (Number(item.fluxo) > 50 && Number(item.conversao) < 10) ? Number(item.percentualFluxo) : null
     }));
   }, [dailyData, calculateStaffPerHour]);
 
@@ -769,13 +776,13 @@ const Dashboard = () => {
                 <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
                   <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="hora" tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: '#4b5563' }} dy={10} tickFormatter={(v) => `${v}h`} />
-                  <YAxis yAxisId="left" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={{ stroke: '#4b5563' }} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val} />
+                  <YAxis yAxisId="left" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={{ stroke: '#4b5563' }} tickFormatter={(val) => `${val}%`} />
                   <YAxis yAxisId="right" orientation="right" unit="%" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={{ stroke: '#4b5563' }} domain={[0, dataMax => (dataMax > 25 ? dataMax : 25)]} />
                   <Tooltip content={<CorporateTooltip />} />
                   <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#e5e7eb' }} />
 
-                  {/* 1. FLUXO: Área Cinza Sólida */}
-                  <Area yAxisId="left" type="monotone" dataKey="fluxo" name="Fluxo Clientes" fill="#cbd5e1" stroke="#94a3b8" fillOpacity={0.2} activeDot={false} />
+                  {/* 1. FLUXO: Área Cinza Sólida (AGORA PERCENTUAL) */}
+                  <Area yAxisId="left" type="monotone" dataKey="percentualFluxo" name="Fluxo Clientes" fill="#cbd5e1" stroke="#94a3b8" fillOpacity={0.2} activeDot={false} />
 
                   {/* 2. CONVERSÃO: Barras Verdes */}
                   <Bar yAxisId="right" dataKey="conversao" name="Conversão %" barSize={24} fill="#10b981" radius={[2, 2, 0, 0]}>
@@ -917,7 +924,15 @@ const Dashboard = () => {
                 </p>
               );
             }
-            if (entry.dataKey === 'pontoAlerta') return null; // Não mostrar alerta no tooltip pois é visual
+            if (entry.dataKey === 'percentualFluxo') {
+              return (
+                <p key={index} className="text-gray-300">
+                  <span style={{ color: entry.color }}>■ </span>
+                  Fluxo: {entry.value}% <span className="text-gray-500 text-[10px] ml-1">({entry.payload.fluxo})</span>
+                </p>
+              );
+            }
+            if (entry.dataKey === 'pontoCritico') return null; // Não mostrar alerta no tooltip pois é visual
             const prefix = entry.name === 'Conversão %' ? '' : '';
             const suffix = entry.name === 'Conversão %' ? '%' : '';
             return (

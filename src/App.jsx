@@ -1,12 +1,9 @@
-// Dentro de src/App.jsx
+import React from 'react';
+import Dashboard from './Dashboard';
+import './App.css';
 
-import Dashboard from './Dashboard'
+const App = () => {
+  return <Dashboard />;
+};
 
-
-function App() {
-  return (
-    <Dashboard />
-  )
-}
-
-export default App
+export default App;

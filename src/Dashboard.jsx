@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef, forwardRef } from 'react';
 import html2canvas from 'html2canvas';
-import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download } from 'lucide-react';
+import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download, Thermometer, Zap } from 'lucide-react';
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot, Area, LabelList } from 'recharts';
+import { computeThermalMetrics, generateSuggestedCoverage, formatThermalIndex, formatPressure, optimizeScheduleRows, optimizeAllDays } from './lib/thermalBalance';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
 const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue, title }) => {
@@ -204,6 +205,11 @@ const Dashboard = () => {
   }, []);
 
   const [staffRows, setStaffRows] = useState(generateSeedData());
+
+  // --- TOGGLE ESCALA OTIMIZADA ---
+  const [isOptimized, setIsOptimized] = useState(false);
+  const originalStaffRowsRef = useRef(null);
+  const optimizedStaffRowsRef = useRef(null);
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -506,20 +512,44 @@ const Dashboard = () => {
     // Fator de Escala para alinhar a curva de equipe com a curva de fluxo percentual
     const scaleFactor = safeMaxPct / maxStaff;
 
-    return basicData.map(item => ({
-      ...item,
-      // Dados Reais
-      fluxo: Number(item.fluxo),
-      conversao: Number(item.conversao),
-      funcionarios_real: Number(item.funcionarios),
-
-      // Dado Visual (Inflado para corresponder à escala de %)
-      funcionarios_visual: Number(item.funcionarios) * scaleFactor,
-
-      // --- PONTO CRÍTICO (VISUAL ALERT) ---
-      // Se fluxo > 50 (absoluto) e conversão < 10, marca o ponto exatamente no pico do fluxo (PERCENTUAL)
-      pontoCritico: (Number(item.fluxo) > 50 && Number(item.conversao) < 10) ? Number(item.percentualFluxo) : null
+    // 3. Preparar dados para cálculo térmico
+    const hourlyDataForThermal = basicData.map(item => ({
+      hour: parseInt(item.hora, 10),
+      flow: Number(item.fluxo),
+      cupons: Number(item.cupons),
+      activeStaff: Number(item.funcionarios),
     }));
+
+    // 4. Calcular métricas térmicas
+    const thermalMetrics = computeThermalMetrics(hourlyDataForThermal);
+
+    // 5. Mapear dados finais com métricas térmicas
+    return basicData.map((item, idx) => {
+      const thermalRow = thermalMetrics.rowsByHour[idx] || {};
+      return {
+        ...item,
+        // Dados Reais
+        fluxo: Number(item.fluxo),
+        conversao: Number(item.conversao),
+        funcionarios_real: Number(item.funcionarios),
+
+        // Dado Visual (Inflado para corresponder à escala de %)
+        funcionarios_visual: Number(item.funcionarios) * scaleFactor,
+
+        // --- PONTO CRÍTICO (VISUAL ALERT) ---
+        pontoCritico: (Number(item.fluxo) > 50 && Number(item.conversao) < 10) ? Number(item.percentualFluxo) : null,
+
+        // --- MÉTRICAS TÉRMICAS ---
+        pressure: thermalRow.pressure || 0,
+        thermalIndex: thermalRow.thermalIndex || 0,
+        thermalBadge: thermalRow.badge || { emoji: '⚪', label: 'N/A', color: '#6B7280' },
+        flowSharePct: thermalRow.flowSharePct || 0,
+
+        // Métricas globais do dia (acessíveis em cada ponto para o tooltip)
+        __thermalMu: thermalMetrics.mu,
+        __thermalScore: thermalMetrics.score,
+      };
+    });
   }, [dailyData, calculateStaffPerHour]);
 
   const insights = useMemo(() => {
@@ -690,7 +720,7 @@ const Dashboard = () => {
 
 
 
-  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab, staffRows, selectedDay }) => {
+  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab, staffRows, selectedDay, onOptimize, isOptimized, onToggleOptimized }) => {
     // --- ANOMALY DETECTION LOGIC (UNCHANGED) ---
     const MIN_FLUXO = 10;
     const STABLE_FLUXO_PCT = 0.15;
@@ -753,6 +783,81 @@ const Dashboard = () => {
       return { criticalDrops, horasCriticas, minConversion, maxFlow, maxFlowHour, maxFlowPct, minStaff, minStaffHour };
     }, [chartData]);
 
+    // --- MÉTRICAS TÉRMICAS GLOBAIS DO DIA ---
+    const thermalMetrics = useMemo(() => {
+      if (!chartData || chartData.length === 0) return null;
+
+      // Extrair do primeiro ponto (todos têm os mesmos valores globais)
+      const firstPoint = chartData[0];
+      if (!firstPoint) return null;
+
+      const mu = firstPoint.__thermalMu || 0;
+      const score = firstPoint.__thermalScore || 0;
+
+      // Coletar hotspots e coldspots dos dados
+      const validPoints = chartData.filter(d => d.flowSharePct > 0 && d.thermalIndex !== 999);
+
+      const hotspots = [...validPoints]
+        .filter(d => d.thermalIndex >= 1.0)
+        .sort((a, b) => b.thermalIndex - a.thermalIndex)
+        .slice(0, 3)
+        .map(d => ({
+          hour: d.hora,
+          index: d.thermalIndex,
+          pressure: d.pressure,
+          staff: d.funcionarios_real,
+          badge: d.thermalBadge,
+        }));
+
+      const coldspots = [...validPoints]
+        .filter(d => d.thermalIndex < 1.0 && d.thermalIndex > 0)
+        .sort((a, b) => a.thermalIndex - b.thermalIndex)
+        .slice(0, 3)
+        .map(d => ({
+          hour: d.hora,
+          index: d.thermalIndex,
+          pressure: d.pressure,
+          staff: d.funcionarios_real,
+          badge: d.thermalBadge,
+        }));
+
+      return { mu, score, hotspots, coldspots };
+    }, [chartData]);
+
+    // --- COBERTURA SUGERIDA ---
+    const suggestedCoverage = useMemo(() => {
+      if (!chartData || chartData.length === 0) return null;
+
+      const rowsByHour = chartData.map(d => ({
+        hour: parseInt(d.hora, 10),
+        flowQty: d.fluxo,
+        activeStaff: d.funcionarios_real,
+        thermalIndex: d.thermalIndex,
+        pressure: d.pressure,
+        badge: d.thermalBadge,
+      }));
+
+      return generateSuggestedCoverage(rowsByHour, {
+        minCoveragePerHour: 1,
+        maxIterations: 20,
+        targetMaxIndex: 1.15,
+      });
+    }, [chartData]);
+
+    // Handler para otimizar escala
+    const handleOptimizeClick = () => {
+      if (!thermalMetrics || !chartData.length) return;
+
+      const thermalRowsByHour = chartData.map(d => ({
+        hour: parseInt(d.hora, 10),
+        flowQty: d.fluxo,
+        thermalIndex: d.thermalIndex,
+        badge: d.thermalBadge,
+      }));
+
+      onOptimize(thermalRowsByHour);
+    };
+
     return (
       // VIEWPORT FULL HEIGHT GRID - FIXED
       <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-6 w-full">
@@ -767,9 +872,30 @@ const Dashboard = () => {
 
           {/* Main Chart (Always Visible) - DARK MODE HYBRID */}
           <div className="w-full bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl p-4">
-            <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wide mb-4 border-l-4 border-[#D6B46A] pl-2">
-              Relatório de Capacidade vs. Demanda
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wide border-l-4 border-[#D6B46A] pl-2">
+                Relatório de Capacidade vs. Demanda
+              </h3>
+              {/* Botão Toggle Escala Otimizada */}
+              <button
+                onClick={() => {
+                  if (!isOptimized) {
+                    // Ativar otimização de todos os dias
+                    onOptimize();
+                  } else {
+                    // Voltar para original
+                    onToggleOptimized();
+                  }
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-bold uppercase tracking-wide ${isOptimized
+                  ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                  : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                {isOptimized ? 'Escala Original' : 'Escala Otimizada'}
+              </button>
+            </div>
 
             <div className="flex-1 w-full min-h-0">
               <ResponsiveContainer width="100%" height={400}>
@@ -865,6 +991,83 @@ const Dashboard = () => {
 
           </div>
 
+          {/* Card 5: Equilíbrio Térmico (Full Width) */}
+          {thermalMetrics && (
+            <div className="w-full bg-[#1E293B]/60 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl p-4 mt-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wide flex items-center gap-2 border-l-4 border-emerald-500 pl-2">
+                  <Thermometer className="w-4 h-4 text-emerald-400" /> Equilíbrio Térmico
+                </h3>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <span className="text-gray-500 text-[10px] uppercase tracking-wider block">Score</span>
+                    <span className={`text-2xl font-bold ${thermalMetrics.score >= 75 ? 'text-emerald-400' : thermalMetrics.score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {thermalMetrics.score}
+                    </span>
+                    <span className="text-gray-500 text-sm">/100</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-gray-500 text-[10px] uppercase tracking-wider block">Média (μ)</span>
+                    <span className="text-xl font-mono text-[#D6B46A]">{thermalMetrics.mu.toFixed(1)}</span>
+                    <span className="text-gray-500 text-xs ml-1">cl/p</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Hotspots */}
+                <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
+                  <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                    🔥 Hotspots (Alta Pressão)
+                  </h4>
+                  {thermalMetrics.hotspots.length > 0 ? (
+                    <ul className="space-y-1.5">
+                      {thermalMetrics.hotspots.map((h, i) => (
+                        <li key={i} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-300 font-mono">{h.hour}h</span>
+                          <span className="text-gray-400">
+                            Idx: <span className="text-red-300 font-bold">{h.index.toFixed(2)}</span>
+                            <span className="text-gray-600 mx-1">|</span>
+                            {h.pressure.toFixed(1)} cl/p
+                            <span className="text-gray-600 mx-1">|</span>
+                            {h.staff} pessoas
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic">Nenhum hotspot detectado</p>
+                  )}
+                </div>
+
+                {/* Coldspots */}
+                <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
+                  <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                    ❄️ Coldspots (Baixa Pressão)
+                  </h4>
+                  {thermalMetrics.coldspots.length > 0 ? (
+                    <ul className="space-y-1.5">
+                      {thermalMetrics.coldspots.map((c, i) => (
+                        <li key={i} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-300 font-mono">{c.hour}h</span>
+                          <span className="text-gray-400">
+                            Idx: <span className="text-blue-300 font-bold">{c.index.toFixed(2)}</span>
+                            <span className="text-gray-600 mx-1">|</span>
+                            {c.pressure.toFixed(1)} cl/p
+                            <span className="text-gray-600 mx-1">|</span>
+                            {c.staff} pessoas
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic">Nenhum coldspot detectado</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
         </section>
 
         {/* Renderiza o Modal de Hora fora do fluxo do aside para não cortar com overflow */}
@@ -912,36 +1115,71 @@ const Dashboard = () => {
 
   const CorporateTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      // Extrair dados do primeiro payload válido
+      const data = payload[0]?.payload || {};
+      const thermalBadge = data.thermalBadge || { emoji: '⚪', label: 'N/A', color: '#6B7280' };
+
       return (
-        <div className="bg-[#1E293B]/90 backdrop-blur-md border border-white/10 p-2 shadow-xl text-xs font-sans rounded-lg">
-          <p className="font-bold text-gray-100 border-b border-white/10 mb-1 pb-1">{label}h</p>
-          {payload.map((entry, index) => {
-            if (entry.dataKey === 'funcionarios_visual') {
-              return (
-                <p key={index} className="text-gray-200 font-semibold">
-                  <span style={{ color: entry.color }}>■ </span>
-                  Equipe: {entry.payload.funcionarios_real} pessoas
-                </p>
-              );
-            }
-            if (entry.dataKey === 'percentualFluxo') {
-              return (
-                <p key={index} className="text-gray-300">
-                  <span style={{ color: entry.color }}>■ </span>
-                  Fluxo: {entry.value}% <span className="text-gray-500 text-[10px] ml-1">({entry.payload.fluxo})</span>
-                </p>
-              );
-            }
-            if (entry.dataKey === 'pontoCritico') return null; // Não mostrar alerta no tooltip pois é visual
-            const prefix = entry.name === 'Conversão %' ? '' : '';
-            const suffix = entry.name === 'Conversão %' ? '%' : '';
-            return (
-              <p key={index} className="text-gray-300">
-                <span style={{ color: entry.color }}>■ </span>
-                {entry.name}: {prefix}{entry.value}{suffix}
+        <div className="bg-[#1E293B]/95 backdrop-blur-md border border-white/10 p-3 shadow-xl text-xs font-sans rounded-lg min-w-[200px]">
+          {/* Header */}
+          <p className="font-bold text-gray-100 border-b border-white/10 mb-2 pb-1 text-sm">{label}h</p>
+
+          {/* Métricas Padrão */}
+          <div className="space-y-1 mb-2">
+            {payload.map((entry, index) => {
+              if (entry.dataKey === 'funcionarios_visual') {
+                return (
+                  <p key={index} className="text-gray-200 font-semibold">
+                    <span style={{ color: entry.color }}>■ </span>
+                    Equipe: {entry.payload.funcionarios_real} pessoas
+                  </p>
+                );
+              }
+              if (entry.dataKey === 'percentualFluxo') {
+                return (
+                  <p key={index} className="text-gray-300">
+                    <span style={{ color: entry.color }}>■ </span>
+                    Fluxo: {entry.value}% <span className="text-gray-500 text-[10px] ml-1">({entry.payload.fluxo})</span>
+                  </p>
+                );
+              }
+              if (entry.dataKey === 'pontoCritico') return null;
+              if (entry.dataKey === 'conversao') {
+                return (
+                  <p key={index} className="text-gray-300">
+                    <span style={{ color: entry.color }}>■ </span>
+                    Conversão: {entry.value}%
+                  </p>
+                );
+              }
+              return null;
+            })}
+          </div>
+
+          {/* Seção de Pressão / Equilíbrio Térmico */}
+          <div className="border-t border-white/10 pt-2 mt-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5 flex items-center gap-1">
+              <Thermometer className="w-3 h-3" /> Equilíbrio Térmico
+            </p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <p className="text-gray-400">Pressão:</p>
+              <p className="text-gray-200 font-mono">{formatPressure(data.pressure)} cl/p</p>
+
+              <p className="text-gray-400">Índice:</p>
+              <p className="text-gray-200 font-mono">{formatThermalIndex(data.thermalIndex)}</p>
+
+              <p className="text-gray-400">Status:</p>
+              <p className="font-semibold" style={{ color: thermalBadge.color }}>
+                {thermalBadge.emoji} {thermalBadge.label}
               </p>
-            );
-          })}
+            </div>
+
+            {/* Score e Média do Dia */}
+            <div className="mt-2 pt-2 border-t border-white/5 flex justify-between text-[10px]">
+              <span className="text-gray-500">Score: <span className="text-[#D6B46A] font-bold">{data.__thermalScore || 0}</span>/100</span>
+              <span className="text-gray-500">μ = <span className="text-gray-300 font-mono">{(data.__thermalMu || 0).toFixed(1)}</span></span>
+            </div>
+          </div>
         </div>
       );
     }
@@ -1031,6 +1269,53 @@ const Dashboard = () => {
                 setActiveTab={setActiveTab}
                 staffRows={staffRows}
                 selectedDay={selectedDay}
+                isOptimized={isOptimized}
+                onOptimize={() => {
+                  // Salvar original antes de otimizar
+                  if (!originalStaffRowsRef.current) {
+                    originalStaffRowsRef.current = [...staffRows];
+                  }
+
+                  // Construir mapa de fluxo real
+                  const flowMap = {};
+                  if (cuponsData && cuponsData.length > 0) {
+                    Object.entries(diasSemana).forEach(([dayName, excelName]) => {
+                      const dayRows = cuponsData.filter(c => c['Dia da Semana'] === excelName);
+                      const hourlyFlow = dayRows.map(c => {
+                        const conversaoRaw = c['% Conversão'];
+                        let conversion = 0;
+                        if (conversaoRaw != null && conversaoRaw !== '') {
+                          const num = parseFloat(conversaoRaw);
+                          // Se vier decimal (0.15) converte pra 15, se vier string "15%" trata tb
+                          conversion = num < 1 ? num * 100 : num;
+                        }
+
+                        return {
+                          hour: parseInt(c['cod_hora_entrada'], 10),
+                          flow: parseFluxValue(c['qtd_entrante']),
+                          conversion: conversion
+                        };
+                      }).filter(h => !isNaN(h.hour));
+
+                      if (hourlyFlow.length > 0) {
+                        flowMap[dayName] = hourlyFlow;
+                      }
+                    });
+                  }
+
+                  // Otimizar TODOS os dias da semana com dados reais
+                  const optimized = optimizeAllDays(staffRows, flowMap);
+                  optimizedStaffRowsRef.current = optimized;
+                  setStaffRows(optimized);
+                  setIsOptimized(true);
+                }}
+                onToggleOptimized={() => {
+                  // Voltar para original
+                  if (originalStaffRowsRef.current) {
+                    setStaffRows([...originalStaffRowsRef.current]);
+                    setIsOptimized(false);
+                  }
+                }}
               />
               <div className="px-6 pb-10">
                 <WeeklyScaleView staffRows={staffRows} onTimeClick={openTimePicker} />

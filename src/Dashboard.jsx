@@ -548,6 +548,8 @@ const Dashboard = () => {
         // Métricas globais do dia (acessíveis em cada ponto para o tooltip)
         __thermalMu: thermalMetrics.mu,
         __thermalScore: thermalMetrics.score,
+        __thermalAdherence: thermalMetrics.adherence,
+        __thermalLostOpportunity: thermalMetrics.lostOpportunity,
       };
     });
   }, [dailyData, calculateStaffPerHour]);
@@ -793,6 +795,8 @@ const Dashboard = () => {
 
       const mu = firstPoint.__thermalMu || 0;
       const score = firstPoint.__thermalScore || 0;
+      const adherence = firstPoint.__thermalAdherence || 0;
+      const lostOpportunity = firstPoint.__thermalLostOpportunity || 0;
 
       // Coletar hotspots e coldspots dos dados
       const validPoints = chartData.filter(d => d.flowSharePct > 0 && d.thermalIndex !== 999);
@@ -821,7 +825,7 @@ const Dashboard = () => {
           badge: d.thermalBadge,
         }));
 
-      return { mu, score, hotspots, coldspots };
+      return { mu, score, adherence, lostOpportunity, hotspots, coldspots };
     }, [chartData]);
 
     // --- COBERTURA SUGERIDA ---
@@ -1063,6 +1067,31 @@ const Dashboard = () => {
                   ) : (
                     <p className="text-xs text-gray-500 italic">Nenhum coldspot detectado</p>
                   )}
+                </div>
+              </div>
+
+              {/* --- ROW 3: ADERÊNCIA E OPORTUNIDADE (V3.1) --- */}
+              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/5">
+                {/* Aderência */}
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Aderência (Curva)</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-2xl font-bold ${thermalMetrics.adherence >= 85 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                      {thermalMetrics.adherence}%
+                    </span>
+                    <span className="text-xs text-gray-500">Target: &gt;85%</span>
+                  </div>
+                </div>
+
+                {/* Oportunidade Perdida */}
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Oportunidade (Perda)</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-2xl font-bold ${thermalMetrics.lostOpportunity === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {thermalMetrics.lostOpportunity}
+                    </span>
+                    <span className="text-xs text-gray-500">clientes est.</span>
+                  </div>
                 </div>
               </div>
             </div>

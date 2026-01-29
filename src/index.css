@@ -2,106 +2,231 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Isso remove qualquer espaço entre o site e a janela do navegador */
-html, body {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  background-color: #0B0F1A !important; /* A mesma cor escura do seu dashboard */
-  overflow-x: hidden; /* Evita barra de rolagem horizontal indesejada */
-}
-
-#root {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-/* Custom Scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(214, 180, 106, 0.3);
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(214, 180, 106, 0.6);
-}
-
-
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* Background Layers (Dark Mode Operacional) */
+    --bg-primary: #0a0c10;
+    --bg-secondary: #11141a;
+    --bg-card: #1a1e27;
+    --bg-elevated: #222835;
+
+    /* Accents Semânticos */
+    --color-optimization: #f59e0b;
+    /* Gold */
+    --color-conversion: #10b981;
+    /* Emerald */
+    --color-flux: #06b6d4;
+    /* Cyan */
+    --color-critical: #f43f5e;
+    /* Rose */
+    --color-info: #6366f1;
+    /* Indigo */
+
+    /* Textos */
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-tertiary: #64748b;
+
+    /* Estados de Borda */
+    --border-subtle: rgba(255, 255, 255, 0.05);
+    --border-hover: rgba(245, 158, 11, 0.3);
+
+    /* Sombras Digitais */
+    --shadow-glow-amber: 0 0 20px rgba(245, 158, 11, 0.15);
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+
+    /* Tailwind Base Mappings (Keeping existing logic working) */
+    --background: 224 20% 4%;
+    /* #0a0c10 converted to hsl approx */
+    --foreground: 210 40% 98%;
+    --card: 222 17% 13%;
+    /* #1a1e27 */
+    --card-foreground: 210 40% 98%;
+    --popover: 224 20% 4%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 219 21% 11%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
     --radius: 0.5rem;
   }
+
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --background: 224 20% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 17% 13%;
+    --card-foreground: 210 40% 98%;
+    --popover: 224 20% 4%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 219 21% 11%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
-
-
 
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[var(--bg-primary)] text-[var(--text-primary)];
+    font-variant-numeric: tabular-nums;
   }
 }
+
+/* Transição suave entre dias */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Hover nos cards de atleta */
+.atleta-row {
+  transition: background-color 0.15s ease;
+}
+
+.atleta-row:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Glow sutil nos botões de ação primária */
+.btn-primary-glow {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+  transition: box-shadow 0.2s;
+}
+
+.btn-primary-glow:hover {
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+}
+
+/* Números contadores */
+.count-up {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Scrollbar personalizada para áreas específicas */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* KPI Card Base Styles */
+.kpi-card {
+  background: linear-gradient(145deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-glow-amber);
+}
+
+.kpi-card-critical::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-critical), transparent);
+}
+
+/* --- User Requested Refinements (Daily Staff List) --- */
+.escala-lista {
+  /* Scroll refinado */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  overflow-y: auto;
+}
+
+.escala-lista::-webkit-scrollbar {
+  width: 6px;
+}
+
+.escala-lista::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.escala-lista::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.escala-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.15s ease;
+}
+
+.escala-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+/* Horários */
+.horario {
+  font-family: 'Inter', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+.horario-entrada {
+  color: #94a3b8;
+}
+
+/* slate-400 */
+.horario-saida {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+/* amber-400 */

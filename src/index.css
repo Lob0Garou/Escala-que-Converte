@@ -4,60 +4,36 @@
 
 @layer base {
   :root {
-    /* Background Layers (Dark Mode Operacional) */
-    --bg-primary: #0a0c10;
-    --bg-secondary: #11141a;
-    --bg-card: #1a1e27;
-    --bg-elevated: #222835;
+    /* Centauro Brand Overhaul - Premium Palette */
+    --c-red: #E30613;
+    --c-red-glow: rgba(227, 6, 19, 0.4);
+    --c-red-muted: rgba(227, 6, 19, 0.1);
 
-    /* Accents Semânticos */
-    --color-optimization: #f59e0b;
-    /* Gold */
-    --color-conversion: #10b981;
-    /* Emerald */
-    --color-flux: #06b6d4;
-    /* Cyan */
-    --color-critical: #f43f5e;
-    /* Rose */
-    --color-info: #6366f1;
-    /* Indigo */
+    /* Semantic Neutrals (Sophisticated Dark Mode) */
+    --bg-deep: #05070a;
+    --bg-primary: #0a0c12;
+    --bg-secondary: #121620;
+    --bg-card: rgba(26, 30, 39, 0.7);
+    --bg-elevated: rgba(34, 40, 53, 0.8);
 
-    /* Textos */
-    --text-primary: #f8fafc;
+    /* Accents & Glass */
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-highlight: rgba(255, 255, 255, 0.03);
+    --accent-emerald: #10b981;
+    --accent-cyan: #06b6d4;
+    --accent-rose: #f43f5e;
+
+    /* Typography */
+    --text-vibrant: #ffffff;
+    --text-primary: #f1f5f9;
     --text-secondary: #94a3b8;
-    --text-tertiary: #64748b;
+    --text-muted: #64748b;
 
-    /* Estados de Borda */
-    --border-subtle: rgba(255, 255, 255, 0.05);
-    --border-hover: rgba(245, 158, 11, 0.3);
+    /* Effects */
+    --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+    --shadow-red-glow: 0 0 30px rgba(227, 6, 19, 0.15);
 
-    /* Sombras Digitais */
-    --shadow-glow-amber: 0 0 20px rgba(245, 158, 11, 0.15);
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-
-    /* Tailwind Base Mappings (Keeping existing logic working) */
-    --background: 224 20% 4%;
-    /* #0a0c10 converted to hsl approx */
-    --foreground: 210 40% 98%;
-    --card: 222 17% 13%;
-    /* #1a1e27 */
-    --card-foreground: 210 40% 98%;
-    --popover: 224 20% 4%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 219 21% 11%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --radius: 0.5rem;
+    --radius-premium: 1.25rem;
   }
 
   .dark {
@@ -85,12 +61,16 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-white/5;
   }
 
   body {
-    @apply bg-[var(--bg-primary)] text-[var(--text-primary)];
-    font-variant-numeric: tabular-nums;
+    @apply bg-[var(--bg-deep)] text-[var(--text-primary)] antialiased selection:bg-[#E30613]/30;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(227, 6, 19, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+    background-attachment: fixed;
   }
 }
 
@@ -117,12 +97,12 @@
 
 /* Glow sutil nos botões de ação primária */
 .btn-primary-glow {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 20px rgba(227, 6, 19, 0.2);
   transition: box-shadow 0.2s;
 }
 
 .btn-primary-glow:hover {
-  box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 30px rgba(227, 6, 19, 0.4);
 }
 
 /* Números contadores */
@@ -163,7 +143,7 @@
 .kpi-card:hover {
   transform: translateY(-2px);
   border-color: var(--border-hover);
-  box-shadow: var(--shadow-glow-amber);
+  box-shadow: var(--shadow-glow-red);
 }
 
 .kpi-card-critical::before {
@@ -225,8 +205,8 @@
 
 /* slate-400 */
 .horario-saida {
-  color: #fbbf24;
+  color: #94a3b8;
   font-weight: 600;
 }
 
-/* amber-400 */
+/* Centauro Red */

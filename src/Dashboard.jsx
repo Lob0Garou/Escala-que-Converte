@@ -1,8 +1,12 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef, forwardRef } from 'react';
+import RemoveBgImage from './components/RemoveBgImage';
+import CENTAURO_BRAND from './lib/centauro_brand_assets';
 import html2canvas from 'html2canvas';
-import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download, Thermometer, Zap } from 'lucide-react';
+import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download, Thermometer, Zap, Banknote, Percent, ShoppingBag, Coins, Activity, BarChart3 } from 'lucide-react';
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot, Area, LabelList, ReferenceArea } from 'recharts';
 import { computeThermalMetrics, generateSuggestedCoverage, formatThermalIndex, formatPressure, optimizeScheduleRows, optimizeAllDays } from './lib/thermalBalance';
+import { calculateRevenueImpact } from './lib/revenueEngine';
+import * as XLSX from 'xlsx';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
 const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue, title }) => {
@@ -66,7 +70,7 @@ const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue, title }) => 
                   className={`
                     h-10 rounded-lg text-sm font-bold tabular-nums transition-all border
                     ${selectedHour === h
-                      ? 'bg-[#f59e0b] text-black border-[#f59e0b] shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                      ? 'bg-[#E30613] text-black border-[#E30613] shadow-[0_0_10px_rgba(245,158,11,0.4)]'
                       : 'bg-[#11141a] border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
                     }
                   `}
@@ -85,7 +89,7 @@ const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue, title }) => 
                   <button
                     key={m}
                     onClick={() => handleMinuteClick(m)}
-                    className="h-14 rounded-xl bg-[#11141a] border border-white/5 text-xl font-bold text-white hover:bg-[#f59e0b]/20 hover:border-[#f59e0b] hover:text-[#f59e0b] transition-all tabular-nums"
+                    className="h-14 rounded-xl bg-[#11141a] border border-white/5 text-xl font-bold text-white hover:bg-[#E30613]/20 hover:border-[#E30613] hover:text-[#E30613] transition-all tabular-nums"
                   >
                     :{m}
                   </button>
@@ -124,7 +128,7 @@ const Dashboard = () => {
       const windowWidth = 1280;
 
       const canvas = await html2canvas(printRef.current, {
-        backgroundColor: printTheme === 'dark' ? '#070A10' : '#ffffff',
+        backgroundColor: printTheme === 'dark' ? '#0a0c10' : '#ffffff',
         scale: 2,
         useCORS: true,
         allowTaint: true,
@@ -183,6 +187,11 @@ const Dashboard = () => {
   // Estado do Picker de Hora
   const [pickerState, setPickerState] = useState({ isOpen: false, rowId: null, field: null, value: '' });
 
+  // --- REVENUE VISION STATE ---
+  const [salesData, setSalesData] = useState([]);
+  const [revenueMetrics, setRevenueMetrics] = useState(null);
+  const [revenueConfig, setRevenueConfig] = useState({ mode: 'INTERNAL' }); // 'INTERNAL' or 'CONSERVATIVE'
+
   // --- SEED DATA GENERATOR ---
   const generateSeedData = useCallback(() => {
     const days = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'];
@@ -228,6 +237,71 @@ const Dashboard = () => {
     'DOMINGO': '7. Dom'
   }), []);
 
+  // --- REVENUE CALCULATION EFFECT ---
+  useEffect(() => {
+    // Só calcula se tiver dados de Vendas carregados
+    if (!salesData.length || !cuponsData.length || !originalStaffRowsRef.current) {
+      setRevenueMetrics(null);
+      return;
+    }
+
+    const dayName = selectedDay;
+    const excelDayName = diasSemana[dayName];
+
+    // 1. Preparar Current Schedule (Map: Hour -> Count)
+    // Precisamos recriar a logica de "calculateStaffPerHour" aqui ou reutilizar?
+    // O ideal é reutilizar. Mas calculateStaffPerHour depende de "dailyData" que é memoizado.
+    // Vamos usar a mesma lógica localmente para garantir consistência sem depender da renderização
+
+    // Helper local para contar staff
+    const countStaffObj = (rows) => {
+      const counts = [];
+      rows.forEach(r => {
+        if (!r.entrada || !r.saida || r.entrada === 'FOLGA') return;
+        const start = parseInt(r.entrada.split(':')[0]);
+        let end = parseInt(r.saida.split(':')[0]);
+        if (end < start) end += 24;
+        const interval = r.intervalo ? parseInt(r.intervalo.split(':')[0]) : -1;
+
+        for (let h = start; h < end; h++) {
+          if (h === interval) continue;
+          const normH = h >= 24 ? h - 24 : h;
+          // Ignorar 22h+ se necessario? O motor de receita filtra horas? 
+          // O motor recebe array {hour, quantity}
+          const existing = counts.find(c => c.hour === normH);
+          if (existing) existing.quantity++;
+          else counts.push({ hour: normH, quantity: 1 });
+        }
+      });
+      return counts;
+    };
+
+    const currentScheduleByHour = countStaffObj(staffRows.filter(r => r.dia === selectedDay));
+    const baseScheduleByHour = countStaffObj(originalStaffRowsRef.current.filter(r => r.dia === selectedDay));
+
+    // 2. Preparar Flow Data (Map: Hour -> Flow, Coupons)
+    const dayFlowRows = cuponsData.filter(c => c['Dia da Semana'] === excelDayName && !isNaN(parseInt(c['cod_hora_entrada'])));
+    const flowByHour = dayFlowRows.map(r => ({
+      hour: parseInt(r['cod_hora_entrada']),
+      flow: parseFluxValue(r['qtd_entrante']),
+      coupons: parseNumber(r['qtd_cupom'])
+    }));
+
+    // 3. Preparar Sales Data
+    // O arquivo de vendas tem 'Hora' e 'Valor_Venda' (e talvez 'Dia_Semana' opcional, mas vamos assumir diario ou total se nao tiver)
+    // Se tiver dia, filtra. Se nao, usa o que tem (assumindo arquivo de 1 dia ou media)
+    const salesByHour = salesData
+      .filter(s => !s.Dia_Semana || s.Dia_Semana.toUpperCase() === dayName || s.Dia_Semana === excelDayName)
+      .map(s => ({
+        hour: parseInt(s.Hora),
+        sales: parseFloat(s.Valor_Venda) || 0
+      }));
+
+    const metrics = calculateRevenueImpact(baseScheduleByHour, currentScheduleByHour, flowByHour, salesByHour, revenueConfig);
+    setRevenueMetrics(metrics);
+
+  }, [staffRows, salesData, cuponsData, selectedDay, revenueConfig, diasSemana]);
+
   // --- UTILITY FUNCTIONS ---
   const excelTimeToString = (excelTime) => {
     if (!excelTime || typeof excelTime === 'string' && excelTime.toUpperCase() === 'FOLGA') {
@@ -252,7 +326,10 @@ const Dashboard = () => {
 
   const parseNumber = (value) => {
     if (typeof value === 'string') {
-      return parseFloat(value.replace(/,/g, '')) || 0;
+      // BR Format: "1.000,50" -> "1000.50"
+      // Remove all dots, replace comma with dot
+      const cleanValue = value.replace(/\./g, '').replace(',', '.');
+      return parseFloat(cleanValue) || 0;
     }
     return parseFloat(value) || 0;
   };
@@ -260,31 +337,62 @@ const Dashboard = () => {
   const findAndParseConversion = (cupom) => {
     const conversaoValue = cupom['% Conversão'];
     if (conversaoValue == null || conversaoValue === '') return 0;
-    const numericValue = parseFloat(conversaoValue);
+
+    let numericValue;
+    if (typeof conversaoValue === 'string') {
+      // Handle "13,4%" -> 13.4
+      const clean = conversaoValue.replace('%', '').replace(',', '.');
+      numericValue = parseFloat(clean);
+    } else {
+      numericValue = parseFloat(conversaoValue);
+    }
+
     if (isNaN(numericValue)) return 0;
+    // Se for menor que 1 (ex: 0.134), multiplica por 100. Se for > 1 (ex: 13.4), mantém.
     return numericValue < 1 ? numericValue * 100 : numericValue;
   };
 
   const parseFluxValue = (value) => {
     if (typeof value === 'string') {
-      return parseFloat(value.replace('.0%', '')) || 0;
+      // BR Format & Cleanup
+      const cleanValue = value.replace('.0%', '').replace(/\./g, '').replace(',', '.');
+      return parseFloat(cleanValue) || 0;
     }
     return parseFloat(value) || 0;
   };
 
   // --- FILE PROCESSING ---
+
+
+  // VOU REESCREVER O PROCESSFILE ORIGINAL PARA INCLUIR VENDAS E REF LOGIC
+  // --- FILE PROCESSING ---
   const processFile = useCallback(async (file, type) => {
     setLoading(true);
     setError(prev => ({ ...prev, [type]: null }));
+
     try {
-      const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs');
+      // const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs'); // REMOVED CDN
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
-      if (type === 'cupons') {
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true }); // Using RAW values to avoid locale formatting issues
+
+      console.log(`[DEBUG] Processed ${type} (RAW):`, jsonData.slice(0, 3));
+      if (jsonData.length > 0) {
+        console.log(`[DEBUG] Headers for ${type}:`, Object.keys(jsonData[0]));
+      }
+
+      if (type === 'vendas') {
+        // Validação simples
+        const hasHora = jsonData[0] && keysMatch(jsonData[0], ['Hora', 'hora', 'HORA']);
+        const hasValor = jsonData[0] && keysMatch(jsonData[0], ['Valor_Venda', 'valor_venda', 'Venda', 'Valor']);
+
+        // Aceitar se tiver campos parecidos
+        setSalesData(jsonData);
+      } else if (type === 'cupons') {
         setCuponsData(jsonData);
       } else {
+        // ESCALA
         const processedRows = jsonData.map((row, index) => ({
           id: `upload-${Date.now()}-${index}`,
           dia: row.DIA ? row.DIA.toUpperCase().trim() : null,
@@ -302,6 +410,10 @@ const Dashboard = () => {
           return row;
         });
 
+        // SALVAR REF ORIGINAL (Base Scenario)
+        // Se estamos carregando um arquivo novo, esse é o novo "Zero".
+        originalStaffRowsRef.current = JSON.parse(JSON.stringify(processedRows));
+
         const uniqueDays = [...new Set(processedRows.map(r => r.dia).filter(Boolean))];
 
         setStaffRows(prev => {
@@ -318,10 +430,17 @@ const Dashboard = () => {
       }
     } catch (err) {
       console.error(`Error processing ${type} file:`, err);
-      setError(prev => ({ ...prev, [type]: 'Erro ao processar. Verifique o formato do arquivo.' }));
+      // Detailed error message
+      setError(prev => ({ ...prev, [type]: `Erro: ${err.message || 'Falha desconhecida'}. Verifique o console (F12).` }));
     }
     setLoading(false);
   }, [selectedDay]);
+
+  // Helper para keys case insensitive
+  const keysMatch = (obj, possibilities) => {
+    const keys = Object.keys(obj).map(k => k.toLowerCase());
+    return possibilities.some(p => keys.includes(p.toLowerCase()));
+  };
 
   const handleFileUpload = useCallback(async (event, type) => {
     const file = event.target.files?.[0];
@@ -390,14 +509,37 @@ const Dashboard = () => {
   };
 
   // --- DATA COMPUTATION ---
+
+  // --- CÁLCULO DE MÉDIA MENSAL (Recurso Solicitado) ---
+  const countWeekdaysInMonth = (year, month, dayName) => {
+    const dayMap = { 'DOMINGO': 0, 'SEGUNDA': 1, 'TERÇA': 2, 'QUARTA': 3, 'QUINTA': 4, 'SEXTA': 5, 'SÁBADO': 6 };
+    const targetDay = dayMap[dayName];
+    let count = 0;
+    const date = new Date(year, month, 1);
+    while (date.getMonth() === month) {
+      if (date.getDay() === targetDay) count++;
+      date.setDate(date.getDate() + 1);
+    }
+    return count || 1; // Evitar divisão por zero
+  };
+
+  const now = new Date();
+  const weekdayCount = useMemo(() => countWeekdaysInMonth(now.getFullYear(), now.getMonth(), selectedDay), [selectedDay]);
+
   const dailyData = useMemo(() => {
     if (!cuponsData.length) return null;
 
     const dayMapping = diasSemana[selectedDay];
     const totalRow = cuponsData.find(c => c['Dia da Semana'] === dayMapping && c['cod_hora_entrada'] === 'Total');
 
-    const totalCupons = totalRow ? parseNumber(totalRow['qtd_cupom']) : 0;
-    const totalFluxo = totalRow ? parseFluxValue(totalRow['qtd_entrante']) : 0;
+    // Usando weekdayCount calculado externamente
+
+    const totalCuponsRaw = totalRow ? parseNumber(totalRow['qtd_cupom']) : 0;
+    const totalFluxoRaw = totalRow ? parseFluxValue(totalRow['qtd_entrante']) : 0;
+
+    // Aplicar média (dividir pelo n° de ocorrências do dia no mês)
+    const totalCupons = Math.round(totalCuponsRaw / weekdayCount);
+    const totalFluxo = Math.round(totalFluxoRaw / weekdayCount);
 
     const dayCupons = cuponsData.filter(c =>
       c['Dia da Semana'] === dayMapping &&
@@ -481,8 +623,17 @@ const Dashboard = () => {
     // 2. Mapeamento Inicial
     const basicData = filteredDayCupons.map(cupom => {
       const hour = parseInt(cupom['cod_hora_entrada'], 10);
-      const qtdCupons = parseNumber(cupom['qtd_cupom']);
-      const qtdFluxo = parseFluxValue(cupom['qtd_entrante']);
+      const qtdCuponsRaw = parseNumber(cupom['qtd_cupom']); // Valor Mensal (Agregado)
+      const qtdFluxoRaw = parseFluxValue(cupom['qtd_entrante']); // Valor Mensal (Agregado)
+
+      // Aplicar Média Diária
+      const qtdCupons = Math.round(qtdCuponsRaw / weekdayCount);
+      const qtdFluxo = Math.round(qtdFluxoRaw / weekdayCount);
+
+      if (hour === 18) {
+        console.log(`[DEBUG 18h] RawFlux: ${qtdFluxoRaw} (Type: ${typeof qtdFluxoRaw}), RawInput: ${cupom['qtd_entrante']} (Type: ${typeof cupom['qtd_entrante']}), Weekdays: ${weekdayCount}, Final: ${qtdFluxo}`);
+      }
+
       const percentualConversao = findAndParseConversion(cupom);
 
       return {
@@ -552,7 +703,7 @@ const Dashboard = () => {
         __thermalLostOpportunity: thermalMetrics.lostOpportunity,
       };
     });
-  }, [dailyData, calculateStaffPerHour]);
+  }, [dailyData, calculateStaffPerHour, weekdayCount]);
 
   const insights = useMemo(() => {
     if (!chartData.length) return null;
@@ -600,17 +751,31 @@ const Dashboard = () => {
   };
 
   const Header = () => (
-    <header className="bg-[#11141a]/80 backdrop-blur-md border-b border-white/5 h-16 flex-none flex items-center justify-between px-8 z-20 shadow-lg">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
-          Escala de Alta Performance
-          <div className="h-5 w-px bg-white/10 mx-2"></div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-[#f59e0b] border border-[#f59e0b]/20 bg-[#f59e0b]/5 px-2.5 py-1 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.15)]">Pro v2</span>
+    <header className="relative h-20 flex-none flex items-center justify-between px-8 z-20 shadow-lg overflow-hidden" style={{ background: CENTAURO_BRAND.gradients.header }}>
+
+      {/* LEFT: Title + Badge */}
+      <div className="flex items-center gap-3 z-10 w-1/3">
+        <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3" style={{ fontFamily: CENTAURO_BRAND.fonts.heading, letterSpacing: '.04em' }}>
+          ESCALA QUE CONVERTE
         </h1>
+        <div className="h-5 w-px bg-white/30 mx-2"></div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-white/90 border border-white/30 bg-white/10 px-2.5 py-1 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.15)]">Pro v2</span>
       </div>
-      <div className="flex items-center gap-4">
-        <div className="text-xs text-slate-400 font-bold uppercase tracking-widest tabular-nums opacity-60">
-          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' })}
+
+      {/* CENTER: Logo + Name (Absolute Centered) */}
+      {/* Logo Central (Absoluto) - VERSÃO TRANSPARENTE VIA CANVAS */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+        <RemoveBgImage
+          src={CENTAURO_BRAND.headerLogo}
+          alt="Centauro"
+          className="h-10 w-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+        />
+      </div>
+
+      {/* RIGHT: Date */}
+      <div className="flex items-center justify-end gap-4 w-1/3 z-10">
+        <div className="text-xs text-white/80 font-bold uppercase tracking-widest tabular-nums bg-black/10 px-3 py-1.5 rounded-lg border border-white/5">
+          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' }).replace('.', '')}
         </div>
       </div>
     </header>
@@ -619,14 +784,14 @@ const Dashboard = () => {
   const LoadingOverlay = () => (
     <div className="fixed inset-0 bg-[#0B0F1A]/90 flex items-center justify-center z-50 backdrop-blur-sm">
       <div className="bg-[#121620] border border-white/10 rounded-2xl p-8 shadow-2xl text-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#D6B46A] mx-auto mb-4"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#E30613] mx-auto mb-4"></div>
         <p className="text-gray-300 font-medium tabular-nums text-sm">Processando...</p>
       </div>
     </div>
   );
 
-  const UploadSection = ({ processFile, dragActive, setDragActive, cuponsData, error }) => (
-    <section className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 h-full items-center max-w-5xl mx-auto w-full">
+  const UploadSection = ({ handleFileUpload, dragActive, setDragActive, cuponsData, salesData, error }) => (
+    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 h-full items-center max-w-7xl mx-auto w-full">
       <UploadBox
         type="cupons"
         title="Fluxo de Loja"
@@ -640,13 +805,13 @@ const Dashboard = () => {
       <div className="flex flex-col h-[300px] bg-[#121620]/60 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-xl overflow-hidden hover:border-white/10 transition-all duration-300 group">
         <div className="flex items-center justify-between px-6 pt-6 mb-2">
           <h3 className="text-sm font-bold text-white tracking-widest uppercase">Escala</h3>
-          <span className="text-[10px] font-bold text-[#D6B46A] bg-[#D6B46A]/10 border border-[#D6B46A]/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+          <span className="text-[10px] font-bold text-[#E30613] bg-[#E30613]/10 border border-[#E30613]/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
             Atual
           </span>
         </div>
         <div className="flex-1 px-6 pb-6">
           <div
-            className={`h-full border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${dragActive.escala ? 'bg-[#D6B46A]/5 border-[#D6B46A]' : 'bg-white/[0.02] hover:bg-white/[0.04]'}`}
+            className={`h-full border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${dragActive.escala ? 'bg-[#E30613]/5 border-[#E30613]' : 'bg-white/[0.02] hover:bg-white/[0.04]'}`}
             onDragEnter={(e) => setDragActive(prev => ({ ...prev, escala: true }))}
             onDragLeave={(e) => setDragActive(prev => ({ ...prev, escala: false }))}
             onDragOver={(e) => e.preventDefault()}
@@ -654,17 +819,29 @@ const Dashboard = () => {
               e.preventDefault();
               e.stopPropagation();
               setDragActive(prev => ({ ...prev, escala: false }));
-              if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0], 'escala');
+              if (e.dataTransfer.files?.[0]) handleFileUpload(e.dataTransfer.files[0], 'escala');
             }}
           >
             <label className="block cursor-pointer w-full h-full flex flex-col items-center justify-center">
-              <Upload className="w-6 h-6 text-gray-500 group-hover:text-[#D6B46A] mb-3 transition-colors" />
+              <Upload className="w-6 h-6 text-gray-500 group-hover:text-[#E30613] mb-3 transition-colors" />
               <p className="text-xs text-gray-400 font-medium">Arraste ou clique (.xlsx)</p>
-              <input type="file" accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0], 'escala')} className="hidden" />
+              <input type="file" accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'escala')} className="hidden" />
             </label>
           </div>
         </div>
       </div>
+
+      {/* 3. VENDA POR HORA (OPCIONAL) */}
+      <UploadBox
+        type="vendas"
+        title="Venda/Hora (Opcional)"
+        onUpload={handleFileUpload}
+        onDrag={handleDrag}
+        onDrop={handleDrop}
+        dragActiveState={dragActive.vendas}
+        data={salesData || []} // Assuming salesData is available here (need to pass prop)
+        errorState={error.vendas}
+      />
     </section>
   );
 
@@ -685,7 +862,7 @@ const Dashboard = () => {
               className={`
                 relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
                 ${isActive
-                  ? 'bg-[#f59e0b] text-black shadow-[0_0_20px_rgba(245,158,11,0.3)]'
+                  ? 'bg-[#E30613] text-white shadow-[0_0_20px_rgba(227,6,19,0.3)]'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
                 }
               `}
@@ -727,7 +904,7 @@ const Dashboard = () => {
 
 
 
-  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab, staffRows, selectedDay, onOptimize, isOptimized, onToggleOptimized }) => {
+  const MainContent = ({ dailyData, insights, chartData, chartType, theme, activeTab, setActiveTab, staffRows, selectedDay, onOptimize, isOptimized, onToggleOptimized, revenueMetrics, revenueConfig }) => {
     // --- ANOMALY DETECTION LOGIC (UNCHANGED) ---
     const MIN_FLUXO = 10;
     const STABLE_FLUXO_PCT = 0.15;
@@ -766,7 +943,7 @@ const Dashboard = () => {
 
       // Cálculo de Fluxo
       const totalFlow = chartData.reduce((acc, curr) => acc + (Number(curr.fluxo) || 0), 0);
-      const maxFlowObj = chartData.reduce((max, curr) => (Number(curr.fluxo) || 0) > (Number(max.fluxo) || 0) ? curr : max, chartData[0]);
+      const maxFlowObj = chartData.reduce((max, curr) => (Number(max.fluxo) || 0) > (Number(curr.fluxo) || 0) ? max : curr, chartData[0]);
       const maxFlow = Number(maxFlowObj.fluxo) || 0;
       const maxFlowHour = `${maxFlowObj.hora}h`;
       const maxFlowPct = totalFlow > 0 ? ((maxFlow / totalFlow) * 100).toFixed(1) : 0;
@@ -882,7 +1059,7 @@ const Dashboard = () => {
           {/* Main Chart (Always Visible) - Enterprise Style */}
           <div className="w-full bg-[#1a1e27] border border-white/5 rounded-2xl shadow-xl p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide border-l-4 border-[#f59e0b] pl-3">
+              <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide border-l-4 border-[#E30613] pl-3">
                 Relatório de Capacidade vs. Demanda
               </h3>
               {/* Botão Toggle Escala Otimizada */}
@@ -913,9 +1090,9 @@ const Dashboard = () => {
                       <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="capacityGradient" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#f59e0b" />
-                      <stop offset="50%" stopColor="#f59e0b" />
-                      <stop offset="100%" stopColor="#ef4444" />
+                      <stop offset="0%" stopColor="#e2e8f0" />
+                      <stop offset="50%" stopColor="#f8fafc" />
+                      <stop offset="100%" stopColor="#e2e8f0" />
                     </linearGradient>
                     <linearGradient id="conversionGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#34d399" />
@@ -1030,18 +1207,19 @@ const Dashboard = () => {
                     stroke="url(#capacityGradient)"
                     strokeWidth={4}
                     dot={(props) => {
-                      // Custom dot logic if needed, or simple dot
-                      // Prompt: "Dot: apenas em pontos de mudança de turno" -> Hard to detect change without iteration. 
-                      // Simplified: show small dot or none. Prompt said "apenas em pontos de mudança...", 
-                      // I'll leave default small dot to avoid logic overhead or just hide default dots.
                       return <circle cx={props.cx} cy={props.cy} r={0} />
                     }}
-                    activeDot={{ r: 6, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: '#f8fafc', stroke: '#0f172a', strokeWidth: 2 }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* REVENUE IMPACT SECTION */}
+          {revenueMetrics && (
+            <RevenueImpactSection metrics={revenueMetrics} config={revenueConfig} />
+          )}
 
           {/* KPI Section - Refactored Layout */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2 mb-6">
@@ -1083,7 +1261,7 @@ const Dashboard = () => {
             <div className="kpi-card group">
               <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Menor Cobertura</span>
               <div className="flex flex-col mt-2">
-                <span className="text-2xl font-bold text-white group-hover:text-[#f59e0b] transition-colors">{dailyMetrics?.minStaff || 0}</span>
+                <span className="text-2xl font-bold text-white group-hover:text-[#E30613] transition-colors">{dailyMetrics?.minStaff || 0}</span>
                 <span className="text-sm text-slate-500 mt-1">
                   Mínimo às {dailyMetrics?.minStaffHour || "N/A"}
                 </span>
@@ -1108,7 +1286,7 @@ const Dashboard = () => {
                   </div>
                   <div className="text-right pl-6 border-l border-white/5">
                     <span className="text-slate-500 text-[10px] uppercase tracking-wider block mb-0.5">Média (μ)</span>
-                    <span className="text-xl font-mono text-[#f59e0b]">{thermalMetrics.mu.toFixed(1)}</span>
+                    <span className="text-xl font-mono text-[#E30613]">{thermalMetrics.mu.toFixed(1)}</span>
                     <span className="text-slate-600 text-xs ml-1">cl/p</span>
                   </div>
                 </div>
@@ -1177,7 +1355,7 @@ const Dashboard = () => {
                 <div className="flex flex-col pl-2">
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Aderência à Demanda</span>
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-2xl font-bold ${thermalMetrics.adherence >= 85 ? 'text-emerald-400' : 'text-[#f59e0b]'}`}>
+                    <span className={`text-2xl font-bold ${thermalMetrics.adherence >= 85 ? 'text-emerald-400' : 'text-[#E30613]'}`}>
                       {thermalMetrics.adherence}%
                     </span>
                     <span className="text-xs text-slate-600">Target: &gt;85%</span>
@@ -1219,7 +1397,7 @@ const Dashboard = () => {
     return (
       <button
         onClick={() => setType(type)}
-        className={`p-1.5 rounded transition-all ${isActive ? 'bg-[#D6B46A] text-black shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+        className={`p-1.5 rounded transition-all ${isActive ? 'bg-[#E30613] text-white shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
       >
         <Icon className="w-4 h-4" />
       </button>
@@ -1285,7 +1463,7 @@ const Dashboard = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">Capacidade</span>
-              <span className="text-sm font-bold text-[#f59e0b] tabular-nums">
+              <span className="text-sm font-bold text-slate-200 tabular-nums">
                 {data.funcionarios_real} <span className="text-[10px] text-slate-500 opacity-70">pessoas</span>
               </span>
             </div>
@@ -1299,7 +1477,7 @@ const Dashboard = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">Conversão</span>
-              <span className="text-sm font-bold text-emerald-400 tabular-nums">{conversion?.value}%</span>
+              <span className="text-sm font-bold text-emerald-400 tabular-nums">{conversion?.value != null ? Number(conversion.value).toFixed(2) : '0.00'}%</span>
             </div>
           </div>
         </div>
@@ -1325,7 +1503,7 @@ const Dashboard = () => {
 
   const UploadBox = ({ type, title, onUpload, onDrag, onDrop, dragActiveState, data, errorState }) => (
     <div
-      className={`bg-[#121620]/60 backdrop-blur-2xl border rounded-2xl shadow-xl p-6 transition-all duration-300 flex flex-col items-center justify-center h-[300px] ${dragActiveState ? 'border-[#D6B46A] bg-[#D6B46A]/5' : 'border-white/5 hover:border-white/10'}`}
+      className={`bg-[#121620]/60 backdrop-blur-2xl border rounded-2xl shadow-xl p-6 transition-all duration-300 flex flex-col items-center justify-center h-[300px] ${dragActiveState ? 'border-[#E30613] bg-[#E30613]/5' : 'border-white/5 hover:border-white/10'}`}
       onDragEnter={(e) => onDrag(e, type)}
       onDragLeave={(e) => onDrag(e, type)}
       onDragOver={(e) => onDrag(e, type)}
@@ -1333,7 +1511,7 @@ const Dashboard = () => {
     >
       <label className="block cursor-pointer text-center w-full">
         <div className="w-12 h-12 rounded-xl bg-white/5 mx-auto mb-4 flex items-center justify-center">
-          <Upload className={`w-6 h-6 ${dragActiveState ? 'text-[#D6B46A]' : 'text-gray-500'}`} />
+          <Upload className={`w-6 h-6 ${dragActiveState ? 'text-[#E30613]' : 'text-gray-500'}`} />
         </div>
         <h3 className="text-lg font-bold text-white tracking-tight mb-1">{title}</h3>
         {data.length > 0 && !errorState ? (
@@ -1347,7 +1525,7 @@ const Dashboard = () => {
         ) : (
           <p className="text-gray-500 text-xs">Arraste ou clique (.xlsx)</p>
         )}
-        <input type="file" accept=".xlsx,.xls" onChange={(e) => onUpload(e, type)} className="hidden" />
+        <input type="file" accept=".xlsx,.xls" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0], type)} className="hidden" />
       </label>
     </div>
   );
@@ -1355,7 +1533,16 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen w-full bg-[#0B0F1A] flex flex-col">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02] z-0" />
+      <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+        {/* Marca d'água Central */}
+        <img
+          src={CENTAURO_BRAND.bgLogo}
+          alt=""
+          className={`w-[85%] h-[85%] object-contain grayscale brightness-150 contrast-125 select-none transition-opacity duration-700 ease-in-out ${cuponsData.length > 0 ? 'opacity-0' : 'opacity-[0.04]'}`}
+        />
+        {/* Grid Overlay sutil */}
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02]" />
+      </div>
       <style jsx global>{`
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.01); }
@@ -1373,10 +1560,11 @@ const Dashboard = () => {
         {!cuponsData.length ? (
           <div className="flex-1 flex items-center justify-center p-12">
             <UploadSection
-              processFile={processFile}
+              handleFileUpload={processFile}
               dragActive={dragActive}
               setDragActive={setDragActive}
               cuponsData={cuponsData}
+              salesData={salesData}
               error={error}
             />
           </div>
@@ -1453,6 +1641,8 @@ const Dashboard = () => {
                     setIsOptimized(false);
                   }
                 }}
+                revenueMetrics={revenueMetrics}
+                revenueConfig={revenueMetrics?.revenueConfig}
               />
               <div className="px-6 pb-10">
                 <WeeklyScaleView staffRows={staffRows} onTimeClick={openTimePicker} />
@@ -1465,12 +1655,13 @@ const Dashboard = () => {
         {showUploadSection && (
           <div className="absolute inset-0 z-50 bg-[#050608]/90 backdrop-blur-sm flex items-center justify-center p-12 rounded-3xl">
             <div className="relative w-full max-w-5xl mx-auto">
-              <button onClick={() => setShowUploadSection(false)} className="absolute -top-10 right-0 text-white hover:text-[#D6B46A]">Fechar</button>
+              <button onClick={() => setShowUploadSection(false)} className="absolute -top-10 right-0 text-white hover:text-[#E30613]">Fechar</button>
               <UploadSection
                 processFile={processFile}
                 dragActive={dragActive}
                 setDragActive={setDragActive}
                 cuponsData={cuponsData}
+                salesData={salesData}
                 error={error}
               />
             </div>
@@ -1494,7 +1685,7 @@ const Dashboard = () => {
 const InsightCard = ({ category, title, text, isHighlighted, onClick }) => {
   const styleMap = {
     alerta: "border-l-red-500",
-    destaque: "border-l-[#D6B46A]",
+    destaque: "border-l-[#E30613]",
     neutro: "border-l-blue-500"
   }
 
@@ -1537,7 +1728,7 @@ const DailyStaffList = ({ staffRows, selectedDay, onTimeClick }) => {
       {/* Cabeçalho Fixo */}
       <div className="mb-4 flex justify-between items-center px-2">
         <h3 className="text-sm font-black text-slate-200 uppercase tracking-wide">
-          Escala: <span className="text-[#f59e0b]">{selectedDay}</span>
+          Escala: <span className="text-[#E30613]">{selectedDay}</span>
         </h3>
         <span className="text-[10px] font-bold bg-[#1a1e27] border border-white/5 px-2 py-1 rounded text-slate-400">
           {colabsDoDia.length} TOTAL
@@ -1571,7 +1762,7 @@ const DailyStaffList = ({ staffRows, selectedDay, onTimeClick }) => {
                 className="flex flex-col items-center cursor-pointer group/time"
                 onClick={() => onTimeClick(colab.id, 'entrada', colab.entrada)}
               >
-                <span className="text-[9px] text-slate-500 uppercase mb-0.5 group-hover/time:text-[#f59e0b] transition-colors font-bold">Ent</span>
+                <span className="text-[9px] text-slate-500 uppercase mb-0.5 group-hover/time:text-[#E30613] transition-colors font-bold">Ent</span>
                 <span className={`horario horario-entrada text-[11px] font-bold ${colab.entrada ? '' : 'opacity-50'}`}>
                   {colab.entrada || '--:--'}
                 </span>
@@ -1582,7 +1773,7 @@ const DailyStaffList = ({ staffRows, selectedDay, onTimeClick }) => {
                 className="flex flex-col items-center cursor-pointer group/time"
                 onClick={() => onTimeClick(colab.id, 'intervalo', colab.intervalo)}
               >
-                <span className="text-[9px] text-slate-500 uppercase mb-0.5 group-hover/time:text-[#f59e0b] transition-colors font-bold">Int</span>
+                <span className="text-[9px] text-slate-500 uppercase mb-0.5 group-hover/time:text-[#E30613] transition-colors font-bold">Int</span>
                 <span className={`horario text-slate-500 text-[11px] font-bold ${colab.intervalo ? '' : 'opacity-50'}`}>
                   {colab.intervalo || '--:--'}
                 </span>
@@ -1593,7 +1784,7 @@ const DailyStaffList = ({ staffRows, selectedDay, onTimeClick }) => {
                 className="flex flex-col items-center cursor-pointer group/time"
                 onClick={() => onTimeClick(colab.id, 'saida', colab.saida)}
               >
-                <span className="text-[9px] text-slate-500 uppercase mb-0.5 group-hover/time:text-[#f59e0b] transition-colors font-bold">Sai</span>
+                <span className="text-[9px] text-slate-500 uppercase mb-0.5 group-hover/time:text-white transition-colors font-bold">Sai</span>
                 <span className={`horario horario-saida text-[11px] font-bold ${colab.saida ? '' : 'opacity-50'}`}>
                   {colab.saida || '--:--'}
                 </span>
@@ -1633,7 +1824,7 @@ const WeeklyScaleView = ({ staffRows, onTimeClick }) => {
           </button>
           <button
             onClick={() => setLocalTheme('dark')}
-            className={`px-3 py-1 rounded text-xs font-bold uppercase transition-all ${localTheme === 'dark' ? 'bg-[#f59e0b] text-black shadow-sm' : 'text-slate-500 hover:text-white'}`}
+            className={`px-3 py-1 rounded text-xs font-bold uppercase transition-all ${localTheme === 'dark' ? 'bg-[#E30613] text-white shadow-sm' : 'text-slate-500 hover:text-white'}`}
           >
             Dark
           </button>
@@ -1648,7 +1839,7 @@ const WeeklyScaleView = ({ staffRows, onTimeClick }) => {
         </button>
       </div>
 
-      <h3 className="text-xl font-bold text-slate-200 uppercase tracking-widest text-left mb-8 pl-1 border-l-4 border-[#f59e0b]">
+      <h3 className="text-xl font-bold text-slate-200 uppercase tracking-widest text-left mb-8 pl-1 border-l-4 border-[#E30613]">
         Escala Semanal
       </h3>
 
@@ -1747,7 +1938,7 @@ const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
                 <div className="flex flex-col items-center relative group/time">
                   <span className="text-[7px] text-slate-600 uppercase font-black mb-px opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5">Sai</span>
                   <span
-                    className="text-[11px] text-[#f59e0b] font-mono cursor-pointer hover:text-[#ffedd5] font-bold tabular-nums tracking-tight"
+                    className="text-[11px] text-slate-400 font-mono cursor-pointer hover:text-white font-bold tabular-nums tracking-tight"
                     onClick={onTimeClick ? () => onTimeClick(colab.id, 'saida', colab.saida) : undefined}
                   >
                     {colab.saida}{colab.saidaDiaSeguinte ? '⁺¹' : ''}
@@ -1780,11 +1971,11 @@ const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
     : "bg-white text-slate-900";
 
   const bgImage = isDark
-    ? 'radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.08), transparent 70%)'
+    ? 'radial-gradient(circle at 50% 0%, rgba(227, 6, 19, 0.08), transparent 70%)'
     : 'radial-gradient(circle at 50% 0%, rgba(0, 0, 0, 0.03), transparent 70%)';
 
   const logoStyle = isDark
-    ? "text-[#f59e0b] border-[#f59e0b]/20 bg-[#f59e0b]/5"
+    ? "text-[#E30613] border-[#E30613]/20 bg-[#E30613]/5"
     : "text-slate-800 border-slate-300 bg-slate-100";
 
   return (
@@ -1797,10 +1988,19 @@ const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
         minHeight: '720px'
       }}
     >
-      <div className="flex items-center justify-between mb-4 px-4">
+      <div className="relative flex items-center justify-between mb-8 px-4">
         <h3 className={`text-2xl font-black uppercase tracking-[0.3em] ${isDark ? 'text-white' : 'text-slate-900'}`}>
           Escala Semanal
         </h3>
+
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <RemoveBgImage
+            src={CENTAURO_BRAND.headerLogo}
+            className="h-12 object-contain"
+            alt="Centauro"
+          />
+        </div>
+
         <div className={`text-sm font-bold uppercase tracking-widest border px-3 py-1 rounded-lg ${logoStyle}`}>
           DataVerse Pro
         </div>
@@ -1844,7 +2044,7 @@ const PrintDayCard = ({ dia, staffRows, theme }) => {
 
   const cardBg = isDark ? "bg-[#11141a] border-white/10" : "bg-white border-slate-200 shadow-sm";
   const headerBg = isDark ? "bg-white/[0.03] border-white/5" : "bg-slate-50 border-slate-100";
-  const titleColor = isDark ? "text-[#f59e0b]" : "text-slate-900";
+  const titleColor = isDark ? "text-[#E30613]" : "text-slate-900";
   const countBadge = isDark ? "bg-white/5 text-slate-400" : "bg-slate-200 text-slate-600";
 
   // Table Styles
@@ -1852,7 +2052,7 @@ const PrintDayCard = ({ dia, staffRows, theme }) => {
   const tdBase = "py-1.5 text-[10px] font-bold tabular-nums align-middle";
   const nameStyle = `font-bold uppercase truncate max-w-[90px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`;
   const timeStyle = isDark ? "text-slate-500" : "text-slate-500";
-  const saidaStyle = isDark ? "text-[#f59e0b]" : "text-slate-900";
+  const saidaStyle = isDark ? "text-slate-100" : "text-slate-900";
   const emptyText = isDark ? "text-slate-600" : "text-slate-400";
 
   // Footer Styles
@@ -1916,6 +2116,94 @@ const PrintDayCard = ({ dia, staffRows, theme }) => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// --- REVENUE COMPONENTS ---
+const RevenueCard = ({ title, value, subtext, icon: Icon, trend, trendValue, color }) => {
+  return (
+    <div className="bg-[#1a1e27] border border-white/5 rounded-xl p-5 flex flex-col justify-between hover:border-white/10 transition-colors group">
+      <div className="flex justify-between items-start mb-4">
+        <div className={`p-2.5 rounded-lg bg-${color}-500/10`}>
+          <Icon className={`w-5 h-5 text-${color}-400 group-hover:text-${color}-300 transition-colors`} />
+        </div>
+        {trend && (
+          <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${trend === 'up' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
+            {trendValue}
+          </div>
+        )}
+      </div>
+      <div>
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</span>
+        <div className="text-2xl font-black text-white mt-1 tracking-tight">{value}</div>
+        <p className="text-xs text-slate-500 mt-1 font-medium">{subtext}</p>
+      </div>
+    </div>
+  );
+};
+
+const RevenueImpactSection = ({ metrics, config }) => {
+  if (!metrics) return null;
+
+  return (
+    <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500 mb-6">
+      <div className="flex items-center gap-3 mb-4">
+        <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide border-l-4 border-emerald-500 pl-3 flex items-center gap-2">
+          <Banknote className="w-4 h-4 text-emerald-400" />
+          Impacto Financeiro da Escala
+        </h3>
+        {config.mode === 'CONSERVATIVE' && (
+          <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+            Modo Conservador
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* CARD 1: RECEITA RECUPERADA */}
+        <RevenueCard
+          title="Receita Recuperada"
+          value={metrics.totalRevenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          subtext="Ganho estimado em horas críticas"
+          icon={Banknote}
+          color="emerald"
+          trend={metrics.totalRevenueRecovered >= 0 ? 'up' : 'down'}
+          trendValue="Projetado"
+        />
+
+        {/* CARD 2: CUPONS ADICIONAIS */}
+        <RevenueCard
+          title="Cupons Adicionais"
+          value={`+${metrics.totalAdditionalCoupons.toFixed(1)}`}
+          subtext="Clientes a mais atendidos"
+          icon={ShoppingBag}
+          color="blue"
+          trend="up"
+          trendValue="Volume"
+        />
+
+        {/* CARD 3: GANHO POR DIA (MÉDIA) - Actually using total for the day */}
+        <RevenueCard
+          title="Ganho do Dia"
+          value={`+${(metrics.totalRevenueRecovered).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+          subtext="Neste cenário de escala"
+          icon={Coins}
+          color="red"
+        />
+
+        {/* CARD 4: EFICIÊNCIA (CONVERSÃO PONDERADA) */}
+        <RevenueCard
+          title="Var. Conversão"
+          value={`${metrics.avgWeightedConversionDelta > 0 ? '+' : ''}${metrics.avgWeightedConversionDelta.toFixed(2)} pp`}
+          subtext="Impacto na conversão (ponderado)"
+          icon={Percent}
+          color="purple"
+          trend={metrics.avgWeightedConversionDelta >= 0 ? 'up' : 'down'}
+          trendValue="Eficiência"
+        />
+      </div>
     </div>
   );
 };

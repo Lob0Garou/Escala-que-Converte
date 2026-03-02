@@ -32,6 +32,10 @@
     /* Effects */
     --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
     --shadow-red-glow: 0 0 30px rgba(227, 6, 19, 0.15);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-hover: rgba(255, 255, 255, 0.15);
+    --shadow-glow-red: 0 0 30px rgba(227, 6, 19, 0.15);
+    --color-critical: #ef4444;
 
     --radius-premium: 1.25rem;
   }

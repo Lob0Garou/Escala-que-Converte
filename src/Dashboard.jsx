@@ -11,6 +11,7 @@ import { calculateStaffByHour } from './lib/staffUtils';
 import { computeCriticalDrops } from './lib/insightEngine';
 import { countWeekdaysInMonth } from './lib/dateUtils';
 import { useFileProcessing } from './hooks/useFileProcessing';
+import { useStaffData } from './hooks/useStaffData';
 import * as XLSX from 'xlsx';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
@@ -192,48 +193,10 @@ const Dashboard = () => {
   const [revenueMetrics, setRevenueMetrics] = useState(null);
   const [revenueConfig, setRevenueConfig] = useState({ mode: 'INTERNAL' }); // 'INTERNAL' or 'CONSERVATIVE'
 
-  // --- SEED DATA GENERATOR ---
-  const generateSeedData = useCallback(() => {
-    const days = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'];
-    let rows = [];
-    let idCounter = 1;
-    days.forEach(day => {
-      for (let i = 0; i < 10; i++) {
-        rows.push({
-          id: `seed-${day}-${idCounter++}`,
-          dia: day,
-          nome: `COLAB ${String(i + 1).padStart(2, '0')}`,
-          entrada: '10:00',
-          intervalo: '14:00',
-          saida: '18:00',
-          saidaDiaSeguinte: false
-        });
-      }
-    });
-    return rows;
-  }, []);
-
-  const [staffRows, setStaffRows] = useState(generateSeedData());
-
-  // --- TOGGLE ESCALA OTIMIZADA ---
-  const [isOptimized, setIsOptimized] = useState(false);
-  const originalStaffRowsRef = useRef(null);
-  const optimizedStaffRowsRef = useRef(null);
+  const [pendingEscalaRows, setPendingEscalaRows] = useState(null);
 
   const handleEscalaProcessed = useCallback((processedRows, currentSelectedDay) => {
-    originalStaffRowsRef.current = JSON.parse(JSON.stringify(processedRows));
-
-    const uniqueDays = [...new Set(processedRows.map((row) => row.dia).filter(Boolean))];
-    setStaffRows((prev) => {
-      if (uniqueDays.length > 1) {
-        return processedRows.filter((row) => row.dia);
-      }
-
-      const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : currentSelectedDay;
-      const otherDays = prev.filter((row) => row.dia !== targetDay);
-      const newRows = processedRows.map((row) => ({ ...row, dia: targetDay }));
-      return [...otherDays, ...newRows];
-    });
+    setPendingEscalaRows({ processedRows, currentSelectedDay });
   }, []);
 
   const {
@@ -265,6 +228,22 @@ const Dashboard = () => {
     'SÁBADO': '6. Sab',
     'DOMINGO': '7. Dom'
   }), []);
+
+  const staffData = useStaffData(selectedDay, cuponsData, diasSemana);
+  const {
+    staffRows,
+    isOptimized,
+    originalStaffRowsRef,
+    updateStaffRow,
+    optimizeSchedule,
+    toggleOptimized
+  } = staffData;
+
+  useEffect(() => {
+    if (!pendingEscalaRows) return;
+    staffData.applyProcessedRows(pendingEscalaRows.processedRows, pendingEscalaRows.currentSelectedDay);
+    setPendingEscalaRows(null);
+  }, [pendingEscalaRows, staffData.applyProcessedRows]);
 
   // --- REVENUE CALCULATION EFFECT ---
   useEffect(() => {
@@ -315,33 +294,6 @@ const Dashboard = () => {
   // --- FILE PROCESSING ---
 
 
-  // VOU REESCREVER O PROCESSFILE ORIGINAL PARA INCLUIR VENDAS E REF LOGIC
-  // --- FILE PROCESSING ---
-  const addStaffRow = useCallback(() => {
-    setStaffRows(prev => {
-      const id = `manual-${Date.now()}`;
-      const newRow = {
-        id,
-        dia: selectedDay,
-        nome: '',
-        entrada: '',
-        intervalo: '',
-        saida: '',
-        saidaDiaSeguinte: false
-      };
-      return [...prev, newRow];
-    });
-  }, [selectedDay]);
-
-  const updateStaffRow = useCallback((id, field, value) => {
-    setStaffRows(prev => prev.map(row =>
-      row.id === id ? { ...row, [field]: value } : row
-    ));
-  }, []);
-
-  const removeStaffRow = useCallback((id) => {
-    setStaffRows(prev => prev.filter(row => row.id !== id));
-  }, []);
 
   // --- LOGICA DO TIME PICKER ---
   const openTimePicker = (id, field, currentValue) => {
@@ -1394,52 +1346,8 @@ const Dashboard = () => {
                 staffRows={staffRows}
                 selectedDay={selectedDay}
                 isOptimized={isOptimized}
-                onOptimize={() => {
-                  // Salvar original antes de otimizar
-                  if (!originalStaffRowsRef.current) {
-                    originalStaffRowsRef.current = [...staffRows];
-                  }
-
-                  // Construir mapa de fluxo real
-                  const flowMap = {};
-                  if (cuponsData && cuponsData.length > 0) {
-                    Object.entries(diasSemana).forEach(([dayName, excelName]) => {
-                      const dayRows = cuponsData.filter(c => c['Dia da Semana'] === excelName);
-                      const hourlyFlow = dayRows.map(c => {
-                        const conversaoRaw = c['% Conversão'];
-                        let conversion = 0;
-                        if (conversaoRaw != null && conversaoRaw !== '') {
-                          const num = parseFloat(conversaoRaw);
-                          // Se vier decimal (0.15) converte pra 15, se vier string "15%" trata tb
-                          conversion = num < 1 ? num * 100 : num;
-                        }
-
-                        return {
-                          hour: parseInt(c['cod_hora_entrada'], 10),
-                          flow: parseFluxValue(c['qtd_entrante']),
-                          conversion: conversion
-                        };
-                      }).filter(h => !isNaN(h.hour));
-
-                      if (hourlyFlow.length > 0) {
-                        flowMap[dayName] = hourlyFlow;
-                      }
-                    });
-                  }
-
-                  // Otimizar TODOS os dias da semana com dados reais
-                  const optimized = optimizeAllDays(staffRows, flowMap);
-                  optimizedStaffRowsRef.current = optimized;
-                  setStaffRows(optimized);
-                  setIsOptimized(true);
-                }}
-                onToggleOptimized={() => {
-                  // Voltar para original
-                  if (originalStaffRowsRef.current) {
-                    setStaffRows([...originalStaffRowsRef.current]);
-                    setIsOptimized(false);
-                  }
-                }}
+                onOptimize={optimizeSchedule}
+                onToggleOptimized={toggleOptimized}
                 revenueMetrics={revenueMetrics}
                 revenueConfig={revenueMetrics?.revenueConfig}
               />

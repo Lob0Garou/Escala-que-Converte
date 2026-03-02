@@ -1,4 +1,57 @@
 
+export const excelTimeToString = (excelTime) => {
+    if (!excelTime || typeof excelTime === 'string' && excelTime.toUpperCase() === 'FOLGA') {
+        return null;
+    }
+    if (typeof excelTime === 'string') {
+        if (/^\d{1,2}:\d{2}/.test(excelTime)) return excelTime;
+    }
+    if (excelTime instanceof Date) {
+        const hours = excelTime.getHours();
+        const minutes = excelTime.getMinutes();
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    if (typeof excelTime === 'number') {
+        const totalMinutes = Math.round(excelTime * 24 * 60);
+        const hours = Math.floor(totalMinutes / 60) % 24;
+        const minutes = totalMinutes % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    return null;
+};
+
+export const parseNumber = (value) => {
+    if (typeof value === 'string') {
+        const cleanValue = value.replace(/\./g, '').replace(',', '.');
+        return parseFloat(cleanValue) || 0;
+    }
+    return parseFloat(value) || 0;
+};
+
+export const findAndParseConversion = (cupom) => {
+    const conversaoValue = cupom['% Conversão'];
+    if (conversaoValue == null || conversaoValue === '') return 0;
+
+    let numericValue;
+    if (typeof conversaoValue === 'string') {
+        const clean = conversaoValue.replace('%', '').replace(',', '.');
+        numericValue = parseFloat(clean);
+    } else {
+        numericValue = parseFloat(conversaoValue);
+    }
+
+    if (isNaN(numericValue)) return 0;
+    return numericValue < 1 ? numericValue * 100 : numericValue;
+};
+
+export const parseFluxValue = (value) => {
+    if (typeof value === 'string') {
+        const cleanValue = value.replace('.0%', '').replace(/\./g, '').replace(',', '.');
+        return parseFloat(cleanValue) || 0;
+    }
+    return parseFloat(value) || 0;
+};
+
 export const parseSalesData = async (file) => {
     const buffer = await file.arrayBuffer();
     // Dynamic import for browser environment

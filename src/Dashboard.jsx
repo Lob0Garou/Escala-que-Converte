@@ -6,6 +6,10 @@ import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, Chevron
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot, Area, LabelList, ReferenceArea } from 'recharts';
 import { computeThermalMetrics, generateSuggestedCoverage, formatThermalIndex, formatPressure, optimizeScheduleRows, optimizeAllDays } from './lib/thermalBalance';
 import { calculateRevenueImpact } from './lib/revenueEngine';
+import { excelTimeToString, parseNumber, findAndParseConversion, parseFluxValue } from './lib/parsers';
+import { calculateStaffByHour } from './lib/staffUtils';
+import { computeCriticalDrops } from './lib/insightEngine';
+import { countWeekdaysInMonth } from './lib/dateUtils';
 import * as XLSX from 'xlsx';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
@@ -249,35 +253,17 @@ const Dashboard = () => {
     const excelDayName = diasSemana[dayName];
 
     // 1. Preparar Current Schedule (Map: Hour -> Count)
-    // Precisamos recriar a logica de "calculateStaffPerHour" aqui ou reutilizar?
-    // O ideal é reutilizar. Mas calculateStaffPerHour depende de "dailyData" que é memoizado.
-    // Vamos usar a mesma lógica localmente para garantir consistência sem depender da renderização
+    const currentScheduleByHourMap = calculateStaffByHour(staffRows.filter(r => r.dia === selectedDay));
+    const baseScheduleByHourMap = calculateStaffByHour(originalStaffRowsRef.current.filter(r => r.dia === selectedDay));
 
-    // Helper local para contar staff
-    const countStaffObj = (rows) => {
-      const counts = [];
-      rows.forEach(r => {
-        if (!r.entrada || !r.saida || r.entrada === 'FOLGA') return;
-        const start = parseInt(r.entrada.split(':')[0]);
-        let end = parseInt(r.saida.split(':')[0]);
-        if (end < start) end += 24;
-        const interval = r.intervalo ? parseInt(r.intervalo.split(':')[0]) : -1;
-
-        for (let h = start; h < end; h++) {
-          if (h === interval) continue;
-          const normH = h >= 24 ? h - 24 : h;
-          // Ignorar 22h+ se necessario? O motor de receita filtra horas? 
-          // O motor recebe array {hour, quantity}
-          const existing = counts.find(c => c.hour === normH);
-          if (existing) existing.quantity++;
-          else counts.push({ hour: normH, quantity: 1 });
-        }
-      });
-      return counts;
-    };
-
-    const currentScheduleByHour = countStaffObj(staffRows.filter(r => r.dia === selectedDay));
-    const baseScheduleByHour = countStaffObj(originalStaffRowsRef.current.filter(r => r.dia === selectedDay));
+    const currentScheduleByHour = Object.entries(currentScheduleByHourMap).map(([hour, quantity]) => ({
+      hour: parseInt(hour, 10),
+      quantity
+    }));
+    const baseScheduleByHour = Object.entries(baseScheduleByHourMap).map(([hour, quantity]) => ({
+      hour: parseInt(hour, 10),
+      quantity
+    }));
 
     // 2. Preparar Flow Data (Map: Hour -> Flow, Coupons)
     const dayFlowRows = cuponsData.filter(c => c['Dia da Semana'] === excelDayName && !isNaN(parseInt(c['cod_hora_entrada'])));
@@ -301,66 +287,6 @@ const Dashboard = () => {
     setRevenueMetrics(metrics);
 
   }, [staffRows, salesData, cuponsData, selectedDay, revenueConfig, diasSemana]);
-
-  // --- UTILITY FUNCTIONS ---
-  const excelTimeToString = (excelTime) => {
-    if (!excelTime || typeof excelTime === 'string' && excelTime.toUpperCase() === 'FOLGA') {
-      return null;
-    }
-    if (typeof excelTime === 'string') {
-      if (/^\d{1,2}:\d{2}/.test(excelTime)) return excelTime;
-    }
-    if (excelTime instanceof Date) {
-      const hours = excelTime.getHours();
-      const minutes = excelTime.getMinutes();
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    if (typeof excelTime === 'number') {
-      const totalMinutes = Math.round(excelTime * 24 * 60);
-      const hours = Math.floor(totalMinutes / 60) % 24;
-      const minutes = totalMinutes % 60;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    return null;
-  };
-
-  const parseNumber = (value) => {
-    if (typeof value === 'string') {
-      // BR Format: "1.000,50" -> "1000.50"
-      // Remove all dots, replace comma with dot
-      const cleanValue = value.replace(/\./g, '').replace(',', '.');
-      return parseFloat(cleanValue) || 0;
-    }
-    return parseFloat(value) || 0;
-  };
-
-  const findAndParseConversion = (cupom) => {
-    const conversaoValue = cupom['% Conversão'];
-    if (conversaoValue == null || conversaoValue === '') return 0;
-
-    let numericValue;
-    if (typeof conversaoValue === 'string') {
-      // Handle "13,4%" -> 13.4
-      const clean = conversaoValue.replace('%', '').replace(',', '.');
-      numericValue = parseFloat(clean);
-    } else {
-      numericValue = parseFloat(conversaoValue);
-    }
-
-    if (isNaN(numericValue)) return 0;
-    // Se for menor que 1 (ex: 0.134), multiplica por 100. Se for > 1 (ex: 13.4), mantém.
-    return numericValue < 1 ? numericValue * 100 : numericValue;
-  };
-
-  const parseFluxValue = (value) => {
-    if (typeof value === 'string') {
-      // BR Format & Cleanup
-      const cleanValue = value.replace('.0%', '').replace(/\./g, '').replace(',', '.');
-      return parseFloat(cleanValue) || 0;
-    }
-    return parseFloat(value) || 0;
-  };
-
   // --- FILE PROCESSING ---
 
 
@@ -511,17 +437,6 @@ const Dashboard = () => {
   // --- DATA COMPUTATION ---
 
   // --- CÁLCULO DE MÉDIA MENSAL (Recurso Solicitado) ---
-  const countWeekdaysInMonth = (year, month, dayName) => {
-    const dayMap = { 'DOMINGO': 0, 'SEGUNDA': 1, 'TERÇA': 2, 'QUARTA': 3, 'QUINTA': 4, 'SEXTA': 5, 'SÁBADO': 6 };
-    const targetDay = dayMap[dayName];
-    let count = 0;
-    const date = new Date(year, month, 1);
-    while (date.getMonth() === month) {
-      if (date.getDay() === targetDay) count++;
-      date.setDate(date.getDate() + 1);
-    }
-    return count || 1; // Evitar divisão por zero
-  };
 
   const now = new Date();
   const weekdayCount = useMemo(() => countWeekdaysInMonth(now.getFullYear(), now.getMonth(), selectedDay), [selectedDay]);
@@ -588,27 +503,6 @@ const Dashboard = () => {
       operatingHourCount: operatingHours.length || 1,
     };
   }, [cuponsData, staffRows, selectedDay, diasSemana]);
-
-  const calculateStaffPerHour = useCallback((dayData, minHour, maxHour) => {
-    const staffCount = {};
-    if (!dayData) return staffCount;
-
-    for (let hour = minHour; hour <= maxHour; hour++) {
-      staffCount[hour] = 0;
-      dayData.forEach(person => {
-        if (!person.ENTRADA || !person.SAIDA) return;
-        const entradaHour = parseInt(person.ENTRADA.split(':')[0], 10);
-        let saidaHour = parseInt(person.SAIDA.split(':')[0], 10);
-        if (saidaHour < entradaHour) saidaHour += 24;
-        const interHour = person.INTER ? parseInt(person.INTER.split(':')[0], 10) : -1;
-        if (hour >= entradaHour && hour < saidaHour && hour !== interHour) {
-          staffCount[hour]++;
-        }
-      });
-    }
-    return staffCount;
-  }, []);
-
   // --- LÓGICA DE NORMALIZAÇÃO (Matemática para o Gráfico) ---
   const chartData = useMemo(() => {
     if (!dailyData || dailyData.length === 0) return [];
@@ -616,7 +510,7 @@ const Dashboard = () => {
     // FILTRO: Ignorar 22h para gráficos e métricas (mantém apenas na escala)
     const filteredDayCupons = dailyData.dayCupons.filter(c => parseInt(c['cod_hora_entrada'], 10) !== 22);
 
-    const staffPerHour = calculateStaffPerHour(dailyData.dailySchedule, dailyData.minHour, dailyData.maxHour);
+    const staffPerHour = calculateStaffByHour(dailyData.dailySchedule, dailyData.minHour, dailyData.maxHour);
     const totalCuponsForPercent = dailyData.totalCupons || 1;
     const totalFluxoForPercent = dailyData.totalFluxo || 1;
 
@@ -703,7 +597,7 @@ const Dashboard = () => {
         __thermalLostOpportunity: thermalMetrics.lostOpportunity,
       };
     });
-  }, [dailyData, calculateStaffPerHour, weekdayCount]);
+  }, [dailyData, weekdayCount]);
 
   const insights = useMemo(() => {
     if (!chartData.length) return null;
@@ -725,7 +619,6 @@ const Dashboard = () => {
   const exportData = async () => {
     if (!chartData.length || !insights) return;
     try {
-      const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs');
       const exportableChartData = chartData.map(item => ({
         'Hora': item.hora,
         'Funcionários': item.funcionarios,
@@ -882,25 +775,6 @@ const Dashboard = () => {
     </div>
   );
 
-  // --- HELPER: CÁLCULO DE QUEDAS CRÍTICAS (DINÂMICO) ---
-  const computeCriticalDrops = (data) => {
-    if (!data || data.length < 2) return { criticalDrops: 0, horasCriticas: [] };
-    const drops = [];
-
-    for (let i = 1; i < data.length; i++) {
-      const current = data[i];
-      const prev = data[i - 1];
-      const delta = (Number(current.conversao) || 0) - (Number(prev.conversao) || 0);
-      if (delta < 0) drops.push({ hora: `${current.hora}h`, delta });
-    }
-
-    // Ordena pelas 2 piores quedas
-    const topDrops = drops.sort((a, b) => a.delta - b.delta).slice(0, 2);
-    return {
-      criticalDrops: topDrops.length,
-      horasCriticas: topDrops.map(d => d.hora)
-    };
-  };
 
 
 
@@ -2207,3 +2081,7 @@ const RevenueImpactSection = ({ metrics, config }) => {
     </div>
   );
 };
+
+
+
+

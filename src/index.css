@@ -10,10 +10,13 @@
     --c-red-muted: rgba(227, 6, 19, 0.1);
 
     /* Semantic Neutrals (Sophisticated Dark Mode) */
-    --bg-deep: #05070a;
+    --bg-deep: #0a0c10;
     --bg-primary: #0a0c12;
     --bg-secondary: #121620;
+    --bg-tertiary: #11141a;
+    --bg-card-solid: #1a1e27;
     --bg-card: rgba(26, 30, 39, 0.7);
+    --bg-elevated-solid: #222835;
     --bg-elevated: rgba(34, 40, 53, 0.8);
 
     /* Accents & Glass */

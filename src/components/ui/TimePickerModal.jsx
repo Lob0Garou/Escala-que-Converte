@@ -36,7 +36,7 @@ export const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue }) => 
         <div className="bg-[#11141a] p-4 border-b border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {step === 'minute' && (
-              <button onClick={() => setStep('hour')} className="text-slate-400 hover:text-white transition-colors">
+              <button onClick={() => setStep('hour')} className="text-slate-400 hover:text-white transition-colors" aria-label="Voltar para seleção de hora">
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}

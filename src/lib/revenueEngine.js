@@ -80,11 +80,6 @@ export const calculateRevenueImpact = ({
         const N_cur = currentCoverage[hour] || 0;
 
         // Pressões
-        const rho_base = N_base > 0 ? F / N_base : 0; // Use 0 instead of 999 to avoid massive skew? Or keep 999 for critical check?
-        // User spec used 999. I will use 999 but be careful.
-        // Spec: "const rho_base = N_base > 0 ? F / N_base : 999;"
-        // Wait, if N_base is 0, pressure is infinite. 
-
         const rho_base_val = N_base > 0 ? F / N_base : 999;
         const rho_cur_val = N_cur > 0 ? F / N_cur : 999;
 

@@ -1,7 +1,8 @@
 import React from 'react';
 import { TrendingUp, Banknote, Percent, ShoppingBag, Coins } from 'lucide-react';
 
-const RevenueCard = ({ title, value, subtext, icon: Icon, trend, trendValue, color }) => {
+const RevenueCard = ({ title, value, subtext, icon, trend, trendValue, color }) => {
+  const Icon = icon;
   return (
     <div className="bg-[#1a1e27] border border-white/5 rounded-xl p-5 flex flex-col justify-between hover:border-white/10 transition-colors group">
       <div className="flex justify-between items-start mb-4">

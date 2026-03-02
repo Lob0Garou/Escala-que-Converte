@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronLeft } from 'lucide-react';
 
-const RevenueCards = ({ impact, mode }) => {
+export const RevenueCards = ({ impact, mode }) => {
     if (!impact) return null;
     const { deltaRevenue, deltaCoupons, criticalHoursBefore, criticalHoursAfter, maxRhoBefore, maxRhoAfter, deltaConversionPP } = impact;
 

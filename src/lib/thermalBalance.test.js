@@ -2,7 +2,6 @@
 import assert from 'assert';
 import { optimizeScheduleRows, computeThermalMetrics } from './thermalBalance.js';
 import fs from 'fs';
-import path from 'path';
 
 const DATA_PATH = 'C:/Users/yuriq/Downloads/dados_3_perfis.json';
 

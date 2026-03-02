@@ -84,3 +84,5 @@ export const FileUploader = ({ label, onUpload, required, accept, data, errorSta
         </div>
     );
 };
+
+export default FileUploader;

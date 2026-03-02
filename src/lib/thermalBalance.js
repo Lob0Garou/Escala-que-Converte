@@ -108,7 +108,7 @@ function buildFlowVector(hourlyData) {
     return v;
 }
 
-function buildWeightVector(hourlyData) {
+function buildWeightVector(_hourlyData) {
     const v = new Array(TOTAL_SLOTS).fill(1.0);
     // Placeholder para lógica avançada de conversão futura
     return v;
@@ -637,7 +637,7 @@ export function computeThermalMetrics(hourlyData) {
     };
 }
 
-export function generateSuggestedCoverage(rowsByHour, config) { return { suggestedStaffByHour: [] }; }
+export function generateSuggestedCoverage(_rowsByHour, _config) { return { suggestedStaffByHour: [] }; }
 export function formatThermalIndex(n) { return n?.toFixed(2) || '-'; }
 export function formatPressure(n) { return n?.toFixed(1) || '-'; }
-export function computeBreaksPerHour(staffRows, day) { return {}; }
+export function computeBreaksPerHour(_staffRows, _day) { return {}; }

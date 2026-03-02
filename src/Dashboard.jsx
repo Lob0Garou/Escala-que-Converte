@@ -10,6 +10,7 @@ import { excelTimeToString, parseNumber, findAndParseConversion, parseFluxValue 
 import { calculateStaffByHour } from './lib/staffUtils';
 import { computeCriticalDrops } from './lib/insightEngine';
 import { countWeekdaysInMonth } from './lib/dateUtils';
+import { useFileProcessing } from './hooks/useFileProcessing';
 import * as XLSX from 'xlsx';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
@@ -177,12 +178,8 @@ const Dashboard = () => {
   }, [handleDownloadImage]);
 
   // --- STATE MANAGEMENT ---
-  const [dragActive, setDragActive] = useState({ cupons: false, escala: false });
-  const [cuponsData, setCuponsData] = useState([]);
   const [selectedDay, setSelectedDay] = useState('SEGUNDA');
   const [chartType, setChartType] = useState('composed');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState({ cupons: null, escala: null });
   const [theme, setTheme] = useState('dark');
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [highlightedLine, setHighlightedLine] = useState(null);
@@ -192,7 +189,6 @@ const Dashboard = () => {
   const [pickerState, setPickerState] = useState({ isOpen: false, rowId: null, field: null, value: '' });
 
   // --- REVENUE VISION STATE ---
-  const [salesData, setSalesData] = useState([]);
   const [revenueMetrics, setRevenueMetrics] = useState(null);
   const [revenueConfig, setRevenueConfig] = useState({ mode: 'INTERNAL' }); // 'INTERNAL' or 'CONSERVATIVE'
 
@@ -223,6 +219,35 @@ const Dashboard = () => {
   const [isOptimized, setIsOptimized] = useState(false);
   const originalStaffRowsRef = useRef(null);
   const optimizedStaffRowsRef = useRef(null);
+
+  const handleEscalaProcessed = useCallback((processedRows, currentSelectedDay) => {
+    originalStaffRowsRef.current = JSON.parse(JSON.stringify(processedRows));
+
+    const uniqueDays = [...new Set(processedRows.map((row) => row.dia).filter(Boolean))];
+    setStaffRows((prev) => {
+      if (uniqueDays.length > 1) {
+        return processedRows.filter((row) => row.dia);
+      }
+
+      const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : currentSelectedDay;
+      const otherDays = prev.filter((row) => row.dia !== targetDay);
+      const newRows = processedRows.map((row) => ({ ...row, dia: targetDay }));
+      return [...otherDays, ...newRows];
+    });
+  }, []);
+
+  const {
+    dragActive,
+    setDragActive,
+    cuponsData,
+    salesData,
+    loading,
+    error,
+    handleFileUpload,
+    handleDrag,
+    handleDrop,
+    setError
+  } = useFileProcessing(selectedDay, handleEscalaProcessed);
 
   // --- THEME SWITCHER ---
   useEffect(() => {
@@ -292,106 +317,6 @@ const Dashboard = () => {
 
   // VOU REESCREVER O PROCESSFILE ORIGINAL PARA INCLUIR VENDAS E REF LOGIC
   // --- FILE PROCESSING ---
-  const processFile = useCallback(async (file, type) => {
-    setLoading(true);
-    setError(prev => ({ ...prev, [type]: null }));
-
-    try {
-      // const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs'); // REMOVED CDN
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true }); // Using RAW values to avoid locale formatting issues
-
-      console.log(`[DEBUG] Processed ${type} (RAW):`, jsonData.slice(0, 3));
-      if (jsonData.length > 0) {
-        console.log(`[DEBUG] Headers for ${type}:`, Object.keys(jsonData[0]));
-      }
-
-      if (type === 'vendas') {
-        // Validação simples
-        const hasHora = jsonData[0] && keysMatch(jsonData[0], ['Hora', 'hora', 'HORA']);
-        const hasValor = jsonData[0] && keysMatch(jsonData[0], ['Valor_Venda', 'valor_venda', 'Venda', 'Valor']);
-
-        // Aceitar se tiver campos parecidos
-        setSalesData(jsonData);
-      } else if (type === 'cupons') {
-        setCuponsData(jsonData);
-      } else {
-        // ESCALA
-        const processedRows = jsonData.map((row, index) => ({
-          id: `upload-${Date.now()}-${index}`,
-          dia: row.DIA ? row.DIA.toUpperCase().trim() : null,
-          nome: row.ATLETA || row.NOME || 'Sem Nome',
-          entrada: excelTimeToString(row.ENTRADA) || '',
-          intervalo: excelTimeToString(row.INTER) || '',
-          saida: excelTimeToString(row.SAIDA) || '',
-          saidaDiaSeguinte: false
-        })).map(row => {
-          if (row.entrada && row.saida) {
-            const [hE] = row.entrada.split(':').map(Number);
-            const [hS] = row.saida.split(':').map(Number);
-            if (hS < hE) row.saidaDiaSeguinte = true;
-          }
-          return row;
-        });
-
-        // SALVAR REF ORIGINAL (Base Scenario)
-        // Se estamos carregando um arquivo novo, esse é o novo "Zero".
-        originalStaffRowsRef.current = JSON.parse(JSON.stringify(processedRows));
-
-        const uniqueDays = [...new Set(processedRows.map(r => r.dia).filter(Boolean))];
-
-        setStaffRows(prev => {
-          if (uniqueDays.length > 1) {
-            return processedRows.filter(r => r.dia);
-          }
-          else {
-            const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : selectedDay;
-            const otherDays = prev.filter(r => r.dia !== targetDay);
-            const newRows = processedRows.map(r => ({ ...r, dia: targetDay }));
-            return [...otherDays, ...newRows];
-          }
-        });
-      }
-    } catch (err) {
-      console.error(`Error processing ${type} file:`, err);
-      // Detailed error message
-      setError(prev => ({ ...prev, [type]: `Erro: ${err.message || 'Falha desconhecida'}. Verifique o console (F12).` }));
-    }
-    setLoading(false);
-  }, [selectedDay]);
-
-  // Helper para keys case insensitive
-  const keysMatch = (obj, possibilities) => {
-    const keys = Object.keys(obj).map(k => k.toLowerCase());
-    return possibilities.some(p => keys.includes(p.toLowerCase()));
-  };
-
-  const handleFileUpload = useCallback(async (event, type) => {
-    const file = event.target.files?.[0];
-    if (file) await processFile(file, type);
-  }, [processFile]);
-
-  const handleDrag = (e, type) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(prev => ({ ...prev, [type]: true }));
-    } else if (e.type === "dragleave") {
-      setDragActive(prev => ({ ...prev, [type]: false }));
-    }
-  };
-
-  const handleDrop = useCallback(async (e, type) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(prev => ({ ...prev, [type]: false }));
-    if (e.dataTransfer.files?.[0]) {
-      await processFile(e.dataTransfer.files[0], type);
-    }
-  }, [processFile]);
-
   const addStaffRow = useCallback(() => {
     setStaffRows(prev => {
       const id = `manual-${Date.now()}`;
@@ -1434,7 +1359,7 @@ const Dashboard = () => {
         {!cuponsData.length ? (
           <div className="flex-1 flex items-center justify-center p-12">
             <UploadSection
-              handleFileUpload={processFile}
+              handleFileUpload={handleFileUpload}
               dragActive={dragActive}
               setDragActive={setDragActive}
               cuponsData={cuponsData}
@@ -1531,7 +1456,7 @@ const Dashboard = () => {
             <div className="relative w-full max-w-5xl mx-auto">
               <button onClick={() => setShowUploadSection(false)} className="absolute -top-10 right-0 text-white hover:text-[#E30613]">Fechar</button>
               <UploadSection
-                processFile={processFile}
+                handleFileUpload={handleFileUpload}
                 dragActive={dragActive}
                 setDragActive={setDragActive}
                 cuponsData={cuponsData}

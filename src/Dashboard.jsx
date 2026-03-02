@@ -4,13 +4,14 @@ import CENTAURO_BRAND from './lib/centauro_brand_assets';
 import html2canvas from 'html2canvas';
 import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download, Thermometer, Zap, Banknote, Percent, ShoppingBag, Coins, Activity, BarChart3 } from 'lucide-react';
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot, Area, LabelList, ReferenceArea } from 'recharts';
-import { generateSuggestedCoverage, formatThermalIndex, formatPressure } from './lib/thermalBalance';
+import { formatThermalIndex, formatPressure } from './lib/thermalBalance';
 import { calculateRevenueImpact } from './lib/revenueEngine';
 import { parseNumber, parseFluxValue } from './lib/parsers';
 import { calculateStaffByHour } from './lib/staffUtils';
 import { useFileProcessing } from './hooks/useFileProcessing';
 import { useStaffData } from './hooks/useStaffData';
 import { useChartData } from './hooks/useChartData';
+import { useThermalMetrics } from './hooks/useThermalMetrics';
 import * as XLSX from 'xlsx';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
@@ -488,67 +489,7 @@ const Dashboard = () => {
     // --- ANOMALY DETECTION LOGIC (UNCHANGED) ---
 
     // --- MÉTRICAS TÉRMICAS GLOBAIS DO DIA ---
-    const thermalMetrics = useMemo(() => {
-      if (!chartData || chartData.length === 0) return null;
-
-      // Extrair do primeiro ponto (todos têm os mesmos valores globais)
-      const firstPoint = chartData[0];
-      if (!firstPoint) return null;
-
-      const mu = firstPoint.__thermalMu || 0;
-      const score = firstPoint.__thermalScore || 0;
-      const adherence = firstPoint.__thermalAdherence || 0;
-      const lostOpportunity = firstPoint.__thermalLostOpportunity || 0;
-
-      // Coletar hotspots e coldspots dos dados
-      const validPoints = chartData.filter(d => d.flowSharePct > 0 && d.thermalIndex !== 999);
-
-      const hotspots = [...validPoints]
-        .filter(d => d.thermalIndex >= 1.0)
-        .sort((a, b) => b.thermalIndex - a.thermalIndex)
-        .slice(0, 3)
-        .map(d => ({
-          hour: d.hora,
-          index: d.thermalIndex,
-          pressure: d.pressure,
-          staff: d.funcionarios_real,
-          badge: d.thermalBadge,
-        }));
-
-      const coldspots = [...validPoints]
-        .filter(d => d.thermalIndex < 1.0 && d.thermalIndex > 0)
-        .sort((a, b) => a.thermalIndex - b.thermalIndex)
-        .slice(0, 3)
-        .map(d => ({
-          hour: d.hora,
-          index: d.thermalIndex,
-          pressure: d.pressure,
-          staff: d.funcionarios_real,
-          badge: d.thermalBadge,
-        }));
-
-      return { mu, score, adherence, lostOpportunity, hotspots, coldspots };
-    }, [chartData]);
-
-    // --- COBERTURA SUGERIDA ---
-    const suggestedCoverage = useMemo(() => {
-      if (!chartData || chartData.length === 0) return null;
-
-      const rowsByHour = chartData.map(d => ({
-        hour: parseInt(d.hora, 10),
-        flowQty: d.fluxo,
-        activeStaff: d.funcionarios_real,
-        thermalIndex: d.thermalIndex,
-        pressure: d.pressure,
-        badge: d.thermalBadge,
-      }));
-
-      return generateSuggestedCoverage(rowsByHour, {
-        minCoveragePerHour: 1,
-        maxIterations: 20,
-        targetMaxIndex: 1.15,
-      });
-    }, [chartData]);
+    const { thermalMetrics, suggestedCoverage } = useThermalMetrics(chartData);
 
     // Handler para otimizar escala
     const handleOptimizeClick = () => {

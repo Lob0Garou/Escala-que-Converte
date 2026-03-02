@@ -5,13 +5,11 @@ import html2canvas from 'html2canvas';
 import { Upload, TrendingUp, Users, AlertCircle, Plus, Trash2, Clock, X, ChevronLeft, Download, Thermometer, Zap, Banknote, Percent, ShoppingBag, Coins, Activity, BarChart3 } from 'lucide-react';
 import { LineChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Line as RechartsLine, ComposedChart, ReferenceDot, Area, LabelList, ReferenceArea } from 'recharts';
 import { formatThermalIndex, formatPressure } from './lib/thermalBalance';
-import { calculateRevenueImpact } from './lib/revenueEngine';
-import { parseNumber, parseFluxValue } from './lib/parsers';
-import { calculateStaffByHour } from './lib/staffUtils';
 import { useFileProcessing } from './hooks/useFileProcessing';
 import { useStaffData } from './hooks/useStaffData';
 import { useChartData } from './hooks/useChartData';
 import { useThermalMetrics } from './hooks/useThermalMetrics';
+import { useRevenueCalculation } from './hooks/useRevenueCalculation';
 import * as XLSX from 'xlsx';
 
 // --- COMPONENTE NOVO: SELETOR DE HORA (3 CLIQUES) ---
@@ -189,10 +187,6 @@ const Dashboard = () => {
   // Estado do Picker de Hora
   const [pickerState, setPickerState] = useState({ isOpen: false, rowId: null, field: null, value: '' });
 
-  // --- REVENUE VISION STATE ---
-  const [revenueMetrics, setRevenueMetrics] = useState(null);
-  const [revenueConfig, setRevenueConfig] = useState({ mode: 'INTERNAL' }); // 'INTERNAL' or 'CONSERVATIVE'
-
   const [pendingEscalaRows, setPendingEscalaRows] = useState(null);
 
   const handleEscalaProcessed = useCallback((processedRows, currentSelectedDay) => {
@@ -245,52 +239,14 @@ const Dashboard = () => {
     setPendingEscalaRows(null);
   }, [pendingEscalaRows, staffData.applyProcessedRows]);
 
-  // --- REVENUE CALCULATION EFFECT ---
-  useEffect(() => {
-    // Só calcula se tiver dados de Vendas carregados
-    if (!salesData.length || !cuponsData.length || !originalStaffRowsRef.current) {
-      setRevenueMetrics(null);
-      return;
-    }
-
-    const dayName = selectedDay;
-    const excelDayName = diasSemana[dayName];
-
-    // 1. Preparar Current Schedule (Map: Hour -> Count)
-    const currentScheduleByHourMap = calculateStaffByHour(staffRows.filter(r => r.dia === selectedDay));
-    const baseScheduleByHourMap = calculateStaffByHour(originalStaffRowsRef.current.filter(r => r.dia === selectedDay));
-
-    const currentScheduleByHour = Object.entries(currentScheduleByHourMap).map(([hour, quantity]) => ({
-      hour: parseInt(hour, 10),
-      quantity
-    }));
-    const baseScheduleByHour = Object.entries(baseScheduleByHourMap).map(([hour, quantity]) => ({
-      hour: parseInt(hour, 10),
-      quantity
-    }));
-
-    // 2. Preparar Flow Data (Map: Hour -> Flow, Coupons)
-    const dayFlowRows = cuponsData.filter(c => c['Dia da Semana'] === excelDayName && !isNaN(parseInt(c['cod_hora_entrada'])));
-    const flowByHour = dayFlowRows.map(r => ({
-      hour: parseInt(r['cod_hora_entrada']),
-      flow: parseFluxValue(r['qtd_entrante']),
-      coupons: parseNumber(r['qtd_cupom'])
-    }));
-
-    // 3. Preparar Sales Data
-    // O arquivo de vendas tem 'Hora' e 'Valor_Venda' (e talvez 'Dia_Semana' opcional, mas vamos assumir diario ou total se nao tiver)
-    // Se tiver dia, filtra. Se nao, usa o que tem (assumindo arquivo de 1 dia ou media)
-    const salesByHour = salesData
-      .filter(s => !s.Dia_Semana || s.Dia_Semana.toUpperCase() === dayName || s.Dia_Semana === excelDayName)
-      .map(s => ({
-        hour: parseInt(s.Hora),
-        sales: parseFloat(s.Valor_Venda) || 0
-      }));
-
-    const metrics = calculateRevenueImpact(baseScheduleByHour, currentScheduleByHour, flowByHour, salesByHour, revenueConfig);
-    setRevenueMetrics(metrics);
-
-  }, [staffRows, salesData, cuponsData, selectedDay, revenueConfig, diasSemana]);
+  const { revenueMetrics, revenueConfig, setRevenueConfig } = useRevenueCalculation(
+    staffRows,
+    salesData,
+    cuponsData,
+    selectedDay,
+    diasSemana,
+    originalStaffRowsRef,
+  );
   // --- FILE PROCESSING ---
 
 

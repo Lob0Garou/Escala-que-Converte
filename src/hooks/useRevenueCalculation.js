@@ -1,49 +1,76 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { calculateRevenueImpact } from '../lib/revenueEngine';
+import { calculateStaffByHour } from '../lib/staffUtils';
+import { parseFluxValue, parseNumber } from '../lib/parsers';
 
-export const useRevenueCalculation = ({
-    baseCoverage,
-    currentCoverage,
-    flowData,
+export const useRevenueCalculation = (
+    staffRows,
     salesData,
+    cuponsData,
     selectedDay,
-    viewMode,
-    weekdayCounts
-}) => {
-    return useMemo(() => {
-        // Note: flowData here should be the map of { hour: { entrantes, cupons, convReal } }
-        // If not, we might need to transform inputs.
-        if (!baseCoverage || !currentCoverage || !flowData) return null;
+    diasSemana,
+    originalStaffRowsRef,
+) => {
+    const [revenueConfig, setRevenueConfig] = useState({ mode: 'INTERNAL' });
 
-        // Normalizar dayKey
-        const dayKeyMap = {
-            'Seg': 'SEGUNDA', 'Ter': 'TERCA', 'Qua': 'QUARTA',
-            'Qui': 'QUINTA', 'Sex': 'SEXTA', 'Sab': 'SABADO', 'Dom': 'DOMINGO',
-            'SEGUNDA': 'SEGUNDA', 'TERÇA': 'TERCA', 'TERCA': 'TERCA', 'QUARTA': 'QUARTA',
-            'QUINTA': 'QUINTA', 'SEXTA': 'SEXTA', 'SÁBADO': 'SABADO', 'SABADO': 'SABADO', 'DOMINGO': 'DOMINGO'
-        };
+    const revenueMetrics = useMemo(() => {
+        if (!salesData?.length || !cuponsData?.length) return null;
 
-        // Extrair dia do formato "6. Sab" ou "SABADO" ou "SÁBADO"
-        let dayKey = selectedDay;
-        if (selectedDay.includes('.')) {
-            dayKey = selectedDay.split('.')[1].trim();
-            // e.g. "Sab" -> "SABADO"
-        }
-        // Remove accents and uppercase
-        dayKey = dayKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        const baselineRows = originalStaffRowsRef?.current || staffRows;
+        if (!baselineRows?.length) return null;
 
-        const normalizedKey = dayKeyMap[Object.keys(dayKeyMap).find(k => k.toUpperCase() === dayKey)] || dayKey;
+        const excelDayName = diasSemana?.[selectedDay];
+        if (!excelDayName) return null;
 
-        const salesForDay = salesData ? salesData[normalizedKey] : null;
+        const currentScheduleByHourMap = calculateStaffByHour(
+            staffRows.filter((row) => row.dia === selectedDay),
+        );
+        const baseScheduleByHourMap = calculateStaffByHour(
+            baselineRows.filter((row) => row.dia === selectedDay),
+        );
 
-        return calculateRevenueImpact({
-            baseCoverage,
-            currentCoverage,
-            flowData,
-            salesData: salesForDay,
-            dayKey: normalizedKey,
-            mode: viewMode,
-            weekdayCounts
-        });
-    }, [baseCoverage, currentCoverage, flowData, salesData, selectedDay, viewMode, weekdayCounts]);
+        const currentScheduleByHour = Object.entries(currentScheduleByHourMap).map(([hour, quantity]) => ({
+            hour: parseInt(hour, 10),
+            quantity,
+        }));
+
+        const baseScheduleByHour = Object.entries(baseScheduleByHourMap).map(([hour, quantity]) => ({
+            hour: parseInt(hour, 10),
+            quantity,
+        }));
+
+        const dayFlowRows = cuponsData.filter(
+            (row) => row['Dia da Semana'] === excelDayName && !isNaN(parseInt(row['cod_hora_entrada'], 10)),
+        );
+
+        const flowByHour = dayFlowRows.map((row) => ({
+            hour: parseInt(row['cod_hora_entrada'], 10),
+            flow: parseFluxValue(row['qtd_entrante']),
+            coupons: parseNumber(row['qtd_cupom']),
+        }));
+
+        const salesByHour = salesData
+            .filter(
+                (row) =>
+                    !row.Dia_Semana ||
+                    row.Dia_Semana.toUpperCase() === selectedDay ||
+                    row.Dia_Semana === excelDayName,
+            )
+            .map((row) => ({
+                hour: parseInt(row.Hora, 10),
+                sales: parseFloat(row.Valor_Venda) || 0,
+            }));
+
+        return calculateRevenueImpact(
+            baseScheduleByHour,
+            currentScheduleByHour,
+            flowByHour,
+            salesByHour,
+            revenueConfig,
+        );
+    }, [staffRows, salesData, cuponsData, selectedDay, diasSemana, revenueConfig, originalStaffRowsRef]);
+
+    return { revenueMetrics, revenueConfig, setRevenueConfig };
 };
+
+export default useRevenueCalculation;

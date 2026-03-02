@@ -29,7 +29,11 @@ export const parseNumber = (value) => {
 };
 
 export const findAndParseConversion = (cupom) => {
-    const conversaoValue = cupom['% Conversão'];
+    const conversionKey = Object.keys(cupom || {}).find((key) => {
+        const normalized = key.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        return normalized.includes('convers') && normalized.includes('%');
+    });
+    const conversaoValue = conversionKey ? cupom[conversionKey] : undefined;
     if (conversaoValue == null || conversaoValue === '') return 0;
 
     let numericValue;
@@ -61,7 +65,7 @@ export const parseSalesData = async (file) => {
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-    // Encontrar linha dos filtros (última linha ou contém "Filtros aplicados")
+    // Encontrar linha dos filtros (ÃƒÆ’Ã‚Âºltima linha ou contÃƒÆ’Ã‚Â©m "Filtros aplicados")
     const filterRow = jsonData.find(row =>
         row && row.some(cell => String(cell).includes('Filtros aplicados'))
     );
@@ -74,8 +78,8 @@ export const parseSalesData = async (file) => {
     if (!dateMatches || dateMatches.length < 2) {
         // If we can't find the period in "Filtros aplicados", try seeing if it's in a header or metadata.
         // But for now, throw error as per spec or handle gracefully?
-        // Spec says: "throw new Error('Período não encontrado no arquivo de vendas')"
-        throw new Error('Período não encontrado no arquivo de vendas. Verifique se a linha "Filtros aplicados" está presente.');
+        // Spec says: "throw new Error('PerÃƒÆ’Ã‚Â­odo nÃƒÆ’Ã‚Â£o encontrado no arquivo de vendas')"
+        throw new Error('PerÃƒÆ’Ã‚Â­odo nÃƒÆ’Ã‚Â£o encontrado no arquivo de vendas. Verifique se a linha "Filtros aplicados" estÃƒÆ’Ã‚Â¡ presente.');
     }
 
     const parseBRDate = (str) => {
@@ -86,7 +90,7 @@ export const parseSalesData = async (file) => {
     const startDate = parseBRDate(dateMatches[0]);
     const endDate = parseBRDate(dateMatches[1]);
 
-    // Encontrar índice das colunas (linha 2 normalmente tem os headers)
+    // Encontrar ÃƒÆ’Ã‚Â­ndice das colunas (linha 2 normalmente tem os headers)
     // Check index of row starting with "Dia da Semana" or "Hora"
     let headerRowIndex = jsonData.findIndex(r => r && r.some(c => String(c).includes('Dia da Semana')));
     if (headerRowIndex === -1) headerRowIndex = 1; // Fallback to 1
@@ -102,7 +106,7 @@ export const parseSalesData = async (file) => {
         });
     }
 
-    // Processar dados (linhas 2 em diante, até "Total")
+    // Processar dados (linhas 2 em diante, atÃƒÆ’Ã‚Â© "Total")
     const salesByDayHour = {};
     const daysMap = {
         '1. Seg': 'SEGUNDA',

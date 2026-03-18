@@ -97,173 +97,153 @@ function buildFlowVector(hourlyData) {
     return v;
 }
 
-function buildWeightVector(_hourlyData) {
-    const v = new Array(TOTAL_SLOTS).fill(1.0);
-    // Placeholder para lógica avançada de conversão futura
-    return v;
-}
-
-function buildCoverageVector(staffRows) {
-    const cov = new Array(TOTAL_SLOTS).fill(0);
-    staffRows.forEach(emp => {
-        const start = emp.slotEntrada;
-        const end = emp.slotSaida;
-        const brk = emp.slotIntervalo;
-        if (start === null || end === null) return;
-
-        const effEnd = Math.min(end, TOTAL_SLOTS);
-        for (let i = start; i < effEnd; i++) {
-            let isBreak = false;
-            if (brk !== null && i >= brk && i < brk + INTERVAL_DURATION_SLOTS) isBreak = true;
-            if (!isBreak) cov[i]++;
-        }
-    });
-    return cov;
-}
-
-/**
- * Custo Incremental O(8)
- */
-function calculateIncrementalCostDelta(currentCoverage, flowVector, weightVector, oldBreak, newBreak, config, avgPressureCache) {
-    let delta = 0;
-    const alphaNormal = 2.0;
-    const alphaHotspot = config.alphaHotspot || 3.5;
-    const threshold = avgPressureCache * 1.3;
-
-    const affectedSlots = new Set();
-    if (oldBreak !== null) {
-        for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
-            if (oldBreak + k < TOTAL_SLOTS) affectedSlots.add(oldBreak + k);
-        }
-    }
-    for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
-        if (newBreak + k < TOTAL_SLOTS) affectedSlots.add(newBreak + k);
-    }
-
-    for (const slot of affectedSlots) {
-        const flow = flowVector[slot];
-        if (flow === 0) continue;
-
-        const weight = weightVector[slot];
-        const covBefore = currentCoverage[slot];
-        const pBefore = covBefore > 0 ? flow / covBefore : flow * 10;
-        const alphaBefore = pBefore >= threshold ? alphaHotspot : alphaNormal;
-        const costBefore = Math.pow(pBefore, alphaBefore) * flow * weight;
-
-        let covAfter = covBefore;
-        if (oldBreak !== null && slot >= oldBreak && slot < oldBreak + INTERVAL_DURATION_SLOTS) covAfter++;
-        if (slot >= newBreak && slot < newBreak + INTERVAL_DURATION_SLOTS) covAfter--;
-
-        const pAfter = covAfter > 0 ? flow / covAfter : flow * 10;
-        const alphaAfter = pAfter >= threshold ? alphaHotspot : alphaNormal;
-        const costAfter = Math.pow(pAfter, alphaAfter) * flow * weight;
-
-        delta += (costAfter - costBefore);
-    }
-    return delta;
-}
-
-// ==================== COORDINATE DESCENT V4.0 ====================
+// ==================== COORDINATE DESCENT V4.1 (HOUR-LEVEL) ====================
 
 /**
  * coordinateDescentOptimize
  *
- * Otimiza TODOS os funcionários por rodada (coordinate descent puro).
- * - avgPressure e threshold são recalculados a cada rodada.
- * - Funcionários são ordenados por pressão no intervalo (pior hotspot primeiro).
- * - Cada melhora é aplicada imediatamente, atualizando coverage para o próximo.
- * - Converge quando nenhuma melhora é possível ou timeout/maxRounds atingido.
+ * Otimiza TODOS os funcionários por rodada com granularidade HORÁRIA.
+ *
+ * Por que hora e não slot (15min)?
+ * calculateStaffByHour() — usado no score — exclui o funcionário apenas
+ * na hora inteira do intervalo (Math.floor(slotIntervalo/4)).
+ * Otimizar em slots de 15min geraria movimentos invisíveis para o score
+ * (e.g., 13:30 → 13:15 continua sendo "hora 13") ou pioras inadvertidas
+ * (e.g., 14:00 → 13:45 muda hora 14 → 13, podendo piorar a hora 13).
+ *
+ * Custo direto = Σ |pressure_h - µ| × flow_h
+ * Isso é exatamente o que o score mede (loss = cost / (µ × totalFlow)).
+ * µ é constante: mover intervalo não altera a cobertura total.
+ *
+ * Regras respeitadas:
+ * - MIN 2h de trabalho antes do intervalo  (MIN_WORK_BEFORE_BREAK_SLOTS / 4)
+ * - MIN 2h de trabalho após o intervalo    (MIN_WORK_AFTER_BREAK_SLOTS / 4)
+ * - Duração do intervalo: 1h               (INTERVAL_DURATION_SLOTS / 4)
  */
-function coordinateDescentOptimize(staffRows, flowVector, weightVector, config) {
+function coordinateDescentOptimize(staffRows, flowVector, _weightVector, config) {
     const startTime = Date.now();
     const { maxRounds, timeoutMs } = config;
+    const TOTAL_HOURS = 24;
+    const MIN_WORK_H  = MIN_WORK_BEFORE_BREAK_SLOTS / SLOTS_PER_HOUR; // 2
+    const MIN_AFTER_H = MIN_WORK_AFTER_BREAK_SLOTS  / SLOTS_PER_HOUR; // 2
+    const BREAK_DUR_H = INTERVAL_DURATION_SLOTS     / SLOTS_PER_HOUR; // 1
 
-    // Build internal staff state (index-based)
+    // Hourly flow: sum 4 slots per hour
+    const hourlyFlow = new Array(TOTAL_HOURS).fill(0);
+    for (let h = 0; h < TOTAL_HOURS; h++) {
+        for (let s = 0; s < SLOTS_PER_HOUR; s++) {
+            hourlyFlow[h] += flowVector[h * SLOTS_PER_HOUR + s];
+        }
+    }
+
+    // Map to hour-level state (mirrors calculateStaffByHour semantics)
     const staffState = staffRows.map((s, idx) => ({
         id: idx,
         originalId: s.id,
         slotEntrada: s.slotEntrada,
-        slotSaida: s.slotSaida,
-        slotIntervalo: s.slotIntervalo,
+        slotSaida:   s.slotSaida,
+        entH: Math.floor(s.slotEntrada / SLOTS_PER_HOUR),
+        outH: Math.floor(s.slotSaida   / SLOTS_PER_HOUR),
+        brkH: s.slotIntervalo !== null ? Math.floor(s.slotIntervalo / SLOTS_PER_HOUR) : null,
     }));
 
-    let coverage = buildCoverageVector(staffState);
+    // Build hourly coverage (identical logic to calculateStaffByHour)
+    const hourCov = new Array(TOTAL_HOURS).fill(0);
+    staffState.forEach(emp => {
+        for (let h = emp.entH; h < emp.outH && h < TOTAL_HOURS; h++) {
+            if (emp.brkH !== null && h === emp.brkH) continue;
+            hourCov[h]++;
+        }
+    });
+
+    // µ = totalFlow / totalCov  — constant throughout (break moves conserve coverage)
+    let totalFlow = 0, totalCov = 0;
+    for (let h = 0; h < TOTAL_HOURS; h++) {
+        if (hourlyFlow[h] > 0) {
+            totalFlow += hourlyFlow[h];
+            totalCov += hourCov[h];
+        }
+    }
+    const mu = totalCov > 0 ? totalFlow / totalCov : 0;
+    if (mu === 0) {
+        // No flow data — return unchanged
+        return staffState.map(emp => ({
+            id: emp.id, originalId: emp.originalId,
+            slotEntrada: emp.slotEntrada, slotSaida: emp.slotSaida,
+            slotIntervalo: emp.brkH !== null ? emp.brkH * SLOTS_PER_HOUR : null,
+        }));
+    }
 
     for (let round = 0; round < maxRounds; round++) {
         if (Date.now() - startTime > timeoutMs) break;
 
-        // Recalculate avgPressure dynamically each round
-        let totalFlow = 0;
-        let totalCov = 0;
-        for (let i = 0; i < TOTAL_SLOTS; i++) {
-            if (flowVector[i] > 0) {
-                totalFlow += flowVector[i];
-                totalCov += coverage[i];
-            }
-        }
-        const avgPressure = totalCov > 0 ? totalFlow / totalCov : 0;
-
-        // Sort employees by max pressure at their current break slot (worst hotspot first)
+        // Sort by |pressure_at_brkH - µ| desc — worst-placed break first
         const empOrder = staffState.map((emp, idx) => {
-            let maxP = 0;
-            if (emp.slotIntervalo !== null) {
-                for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
-                    const slot = emp.slotIntervalo + k;
-                    if (slot < TOTAL_SLOTS && flowVector[slot] > 0) {
-                        const p = coverage[slot] > 0
-                            ? flowVector[slot] / coverage[slot]
-                            : flowVector[slot] * 10;
-                        if (p > maxP) maxP = p;
-                    }
-                }
+            let priority = 0;
+            if (emp.brkH !== null && hourlyFlow[emp.brkH] > 0 && hourCov[emp.brkH] > 0) {
+                priority = Math.abs(hourlyFlow[emp.brkH] / hourCov[emp.brkH] - mu);
             }
-            return { idx, maxP };
+            return { idx, priority };
         });
-        empOrder.sort((a, b) => b.maxP - a.maxP);
+        empOrder.sort((a, b) => b.priority - a.priority);
 
         let anyImprovement = false;
 
         for (const { idx } of empOrder) {
             const emp = staffState[idx];
-            const minStart = emp.slotEntrada + MIN_WORK_BEFORE_BREAK_SLOTS;
-            const maxStart = emp.slotSaida - MIN_WORK_AFTER_BREAK_SLOTS - INTERVAL_DURATION_SLOTS;
-            if (minStart > maxStart) continue;
+            const minBrkH = emp.entH + MIN_WORK_H;
+            const maxBrkH = emp.outH - MIN_AFTER_H - BREAK_DUR_H;
+            if (minBrkH > maxBrkH) continue;
 
-            const currentBreak = emp.slotIntervalo;
-            let bestDelta = -1e-6; // Must improve by a meaningful amount
-            let bestSlot = null;
+            const curBrkH = emp.brkH;
+            let bestDelta = -1e-9;
+            let bestBrkH  = null;
 
-            for (let cand = minStart; cand <= maxStart; cand++) {
-                if (cand === currentBreak) continue;
-                const delta = calculateIncrementalCostDelta(
-                    coverage, flowVector, weightVector,
-                    currentBreak, cand, config, avgPressure
-                );
+            for (let cand = minBrkH; cand <= maxBrkH; cand++) {
+                if (cand === curBrkH) continue;
+                let delta = 0;
+
+                // Candidate hour: employee goes on break → cov decreases
+                if (hourlyFlow[cand] > 0) {
+                    const c0 = hourCov[cand];
+                    const p0 = c0 > 0 ? hourlyFlow[cand] / c0 : hourlyFlow[cand] * 10;
+                    const p1 = c0 > 1 ? hourlyFlow[cand] / (c0 - 1) : hourlyFlow[cand] * 10;
+                    delta += (Math.abs(p1 - mu) - Math.abs(p0 - mu)) * hourlyFlow[cand];
+                }
+
+                // Old break hour: employee returns → cov increases
+                if (curBrkH !== null && hourlyFlow[curBrkH] > 0) {
+                    const c0 = hourCov[curBrkH];
+                    const p0 = c0 > 0 ? hourlyFlow[curBrkH] / c0 : hourlyFlow[curBrkH] * 10;
+                    const p1 = hourlyFlow[curBrkH] / (c0 + 1);
+                    delta += (Math.abs(p1 - mu) - Math.abs(p0 - mu)) * hourlyFlow[curBrkH];
+                }
+
                 if (delta < bestDelta) {
                     bestDelta = delta;
-                    bestSlot = cand;
+                    bestBrkH  = cand;
                 }
             }
 
-            if (bestSlot !== null) {
-                // Apply move immediately — coverage updated for subsequent employees
-                if (currentBreak !== null) {
-                    for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
-                        if (currentBreak + k < TOTAL_SLOTS) coverage[currentBreak + k]++;
-                    }
-                }
-                for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
-                    if (bestSlot + k < TOTAL_SLOTS) coverage[bestSlot + k]--;
-                }
-                emp.slotIntervalo = bestSlot;
+            if (bestBrkH !== null) {
+                if (curBrkH !== null) hourCov[curBrkH]++;
+                hourCov[bestBrkH]--;
+                emp.brkH = bestBrkH;
                 anyImprovement = true;
             }
         }
 
-        if (!anyImprovement) break; // Converged — local minimum reached
+        if (!anyImprovement) break;
     }
 
-    return staffState;
+    // Map hour-level break back to slot (H:00 — clean full-hour break times)
+    return staffState.map(emp => ({
+        id:           emp.id,
+        originalId:   emp.originalId,
+        slotEntrada:  emp.slotEntrada,
+        slotSaida:    emp.slotSaida,
+        slotIntervalo: emp.brkH !== null ? emp.brkH * SLOTS_PER_HOUR : null,
+    }));
 }
 
 
@@ -282,7 +262,6 @@ export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, 
     const v4Config = V4_CONFIG[profile];
 
     const flowVector = buildFlowVector(thermalRowsByHour);
-    const weightVector = buildWeightVector(thermalRowsByHour);
 
     const optimizableStaff = dayStaff.map(s => ({
         ...s,
@@ -291,7 +270,7 @@ export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, 
         slotIntervalo: s.intervalo ? toSlot(s.intervalo) : null
     }));
 
-    const finalState = coordinateDescentOptimize(optimizableStaff, flowVector, weightVector, v4Config);
+    const finalState = coordinateDescentOptimize(optimizableStaff, flowVector, null, v4Config);
 
     const resultRows = staffRows.map(row => {
         const opt = finalState.find(o => o.originalId === row.id);

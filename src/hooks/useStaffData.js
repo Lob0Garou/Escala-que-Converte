@@ -2,30 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import { optimizeAllDays } from '../lib/thermalBalance';
 import { parseFluxValue } from '../lib/parsers';
 
-const generateSeedData = () => {
-    const days = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'];
-    let rows = [];
-    let idCounter = 1;
-
-    days.forEach((day) => {
-        for (let i = 0; i < 10; i++) {
-            rows.push({
-                id: `seed-${day}-${idCounter++}`,
-                dia: day,
-                nome: `COLAB ${String(i + 1).padStart(2, '0')}`,
-                entrada: '10:00',
-                intervalo: '14:00',
-                saida: '18:00',
-                saidaDiaSeguinte: false,
-            });
-        }
-    });
-
-    return rows;
-};
-
 export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
-    const [staffRows, setStaffRows] = useState(generateSeedData);
+    const [staffRows, setStaffRows] = useState([]);
     const [isOptimized, setIsOptimized] = useState(false);
     const originalStaffRowsRef = useRef(null);
     const optimizedStaffRowsRef = useRef(null);

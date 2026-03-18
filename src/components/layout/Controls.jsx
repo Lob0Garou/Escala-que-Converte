@@ -7,11 +7,11 @@ export const Controls = ({ selectedDay, setSelectedDay, setShowUploadSection }) 
       {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'].map((day) => {
         const fullDay = {
           SEG: 'SEGUNDA',
-          TER: 'TER�A',
+          TER: 'TERÇA',
           QUA: 'QUARTA',
           QUI: 'QUINTA',
           SEX: 'SEXTA',
-          SAB: 'S�BADO',
+          SAB: 'SÁBADO',
           DOM: 'DOMINGO',
         }[day];
         const isActive = selectedDay === fullDay;

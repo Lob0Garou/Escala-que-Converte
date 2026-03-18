@@ -4,7 +4,7 @@ import SimpleDayCard from './SimpleDayCard';
 
 export const WeeklyScaleView = ({ staffRows, onTimeClick }) => {
   const [localTheme, setLocalTheme] = useState('dark');
-  const dias = ['SEGUNDA', 'TER�A', 'QUARTA', 'QUINTA', 'SEXTA', 'S�BADO', 'DOMINGO'];
+  const dias = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO'];
 
   const handleGenerate = (selectedTheme) => {
     window.dispatchEvent(new CustomEvent('update-print-theme', { detail: selectedTheme }));

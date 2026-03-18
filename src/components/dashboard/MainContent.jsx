@@ -25,7 +25,7 @@ export const MainContent = ({ chartData, dailyMetrics, thermalMetrics, staffRows
           <RevenueImpactSection metrics={revenueMetrics} config={revenueConfig} />
         )}
 
-        <KPICards dailyMetrics={dailyMetrics} />
+        <KPICards dailyMetrics={dailyMetrics} revenueMetrics={revenueMetrics} />
         <ThermalPanel thermalMetrics={thermalMetrics} />
       </section>
     </main>

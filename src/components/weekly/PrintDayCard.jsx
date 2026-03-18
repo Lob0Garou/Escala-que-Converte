@@ -65,7 +65,7 @@ export const PrintDayCard = ({ dia, staffRows, theme }) => {
                 <td className={`${tdBase} ${nameStyle} py-2`}>{colab.nome}</td>
                 <td className={`${tdBase} text-center ${timeStyle}`}>{colab.entrada || '--'}</td>
                 <td className={`${tdBase} text-center ${timeStyle}`}>{colab.intervalo || '-'}</td>
-                <td className={`${tdBase} text-center ${saidaStyle}`}>{colab.saida}{colab.saidaDiaSeguinte ? '?�' : ''}</td>
+                <td className={`${tdBase} text-center ${saidaStyle}`}>{colab.saida}{colab.saidaDiaSeguinte ? '+1' : ''}</td>
               </tr>
             )) : (
               <tr>

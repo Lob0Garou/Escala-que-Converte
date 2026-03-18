@@ -53,7 +53,7 @@ export const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
                   </span>
                 </div>
 
-                <span className="text-[8px] text-slate-700 font-black">�</span>
+                <span className="text-[8px] text-slate-700 font-black">›</span>
 
                 <div className="flex flex-col items-center relative group/time">
                   <span className="text-[7px] text-slate-600 uppercase font-black mb-px opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5">Int</span>
@@ -65,7 +65,7 @@ export const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
                   </span>
                 </div>
 
-                <span className="text-[8px] text-slate-700 font-black">�</span>
+                <span className="text-[8px] text-slate-700 font-black">›</span>
 
                 <div className="flex flex-col items-center relative group/time">
                   <span className="text-[7px] text-slate-600 uppercase font-black mb-px opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5">Sai</span>
@@ -73,7 +73,7 @@ export const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
                     className="text-[11px] text-slate-400 font-mono cursor-pointer hover:text-white font-bold tabular-nums tracking-tight"
                     onClick={onTimeClick ? () => onTimeClick(colab.id, 'saida', colab.saida) : undefined}
                   >
-                    {colab.saida}{colab.saidaDiaSeguinte ? '?�' : ''}
+                    {colab.saida}{colab.saidaDiaSeguinte ? '+1' : ''}
                   </span>
                 </div>
               </div>

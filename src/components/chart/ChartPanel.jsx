@@ -21,7 +21,7 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
     <div className="w-full bg-[#1a1e27] border border-white/5 rounded-2xl shadow-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide border-l-4 border-[#E30613] pl-3">
-          Relat�rio de Capacidade vs. Demanda
+          Relatório de Capacidade vs. Demanda
         </h3>
         <button
           onClick={() => {
@@ -41,8 +41,8 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
         </button>
       </div>
 
-      <div className="flex-1 w-full min-h-0">
-        <ResponsiveContainer width="100%" height={400}>
+      <div className="flex-1 w-full min-h-0 h-[280px] md:h-[400px]">
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
             <defs>
               <linearGradient id="fluxGradient" x1="0" y1="0" x2="0" y2="1">
@@ -79,7 +79,7 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
               unit="%"
               tick={{ fill: '#64748b', fontSize: 11 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-              domain={[0, (dataMax) => (dataMax > 25 ? dataMax : 25)]}
+              domain={[0, (dataMax) => Math.ceil(dataMax * 1.3)]}
             />
             <Tooltip content={<CorporateTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
             <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
@@ -119,7 +119,7 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
             <Bar
               yAxisId="right"
               dataKey="conversao"
-              name="Convers�o %"
+              name="Conversão %"
               barSize={24}
               fill="url(#conversionGradient)"
               fillOpacity={0.8}

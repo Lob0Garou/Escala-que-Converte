@@ -4,8 +4,8 @@ import CENTAURO_BRAND from '../../lib/centauro_brand_assets';
 import PrintDayCard from './PrintDayCard';
 
 export const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
-  const diasTop = ['SEGUNDA', 'TER�A', 'QUARTA', 'QUINTA'];
-  const diasBottom = ['SEXTA', 'S�BADO', 'DOMINGO'];
+  const diasTop = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA'];
+  const diasBottom = ['SEXTA', 'SÁBADO', 'DOMINGO'];
 
   const isDark = theme === 'dark';
 

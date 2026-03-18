@@ -46,7 +46,7 @@ export const RevenueImpactSection = ({ metrics, config }) => {
         <RevenueCard
           title="Receita Recuperada"
           value={metrics.totalRevenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          subtext="Ganho estimado em horas cr�ticas"
+          subtext="Ganho estimado em horas críticas"
           icon={Banknote}
           color="emerald"
           trend={metrics.totalRevenueRecovered >= 0 ? 'up' : 'down'}
@@ -66,19 +66,19 @@ export const RevenueImpactSection = ({ metrics, config }) => {
         <RevenueCard
           title="Ganho do Dia"
           value={`+${metrics.totalRevenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
-          subtext="Neste cen�rio de escala"
+          subtext="Neste cenário de escala"
           icon={Coins}
           color="red"
         />
 
         <RevenueCard
-          title="Var. Convers�o"
+          title="Var. Conversão"
           value={`${metrics.avgWeightedConversionDelta > 0 ? '+' : ''}${metrics.avgWeightedConversionDelta.toFixed(2)} pp`}
-          subtext="Impacto na convers�o (ponderado)"
+          subtext="Impacto na conversão (ponderado)"
           icon={Percent}
           color="purple"
           trend={metrics.avgWeightedConversionDelta >= 0 ? 'up' : 'down'}
-          trendValue="Efici�ncia"
+          trendValue="Eficiência"
         />
       </div>
     </div>

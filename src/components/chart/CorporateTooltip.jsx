@@ -6,7 +6,7 @@ export const CorporateTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
 
   const data = payload[0]?.payload || {};
-  const thermalBadge = data.thermalBadge || { emoji: '\u26AA', label: 'Est�vel', color: '#6B7280' };
+  const thermalBadge = data.thermalBadge || { emoji: '\u26AA', label: 'Estável', color: '#6B7280' };
 
   const findMetric = (key) => payload.find((point) => point.dataKey === key);
   const flow = findMetric('percentualFluxo');
@@ -46,11 +46,11 @@ export const CorporateTooltip = ({ active, payload, label }) => {
 
         <div className="col-span-1 space-y-3">
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">�ndice T�rmico</span>
+            <span className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">Índice Térmico</span>
             <span className="text-sm font-bold text-white font-mono tabular-nums">{formatThermalIndex(data.thermalIndex)}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">Convers�o</span>
+            <span className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">Conversão</span>
             <span className="text-sm font-bold text-emerald-400 tabular-nums">{conversion?.value != null ? Number(conversion.value).toFixed(2) : '0.00'}%</span>
           </div>
         </div>

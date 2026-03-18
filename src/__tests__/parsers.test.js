@@ -35,11 +35,11 @@ test('parseNumber parses brazilian decimal format and fallbacks', () => {
 });
 
 test('findAndParseConversion parses string percentage and decimals', () => {
-  assert.equal(findAndParseConversion({ '% Convers�o': '13,4%' }), 13.4);
-  assert.equal(findAndParseConversion({ '% Convers�o': 0.134 }), 13.4);
-  assert.equal(findAndParseConversion({ '% Convers�o': 13.4 }), 13.4);
-  assert.equal(findAndParseConversion({ '% Convers�o': null }), 0);
-  assert.equal(findAndParseConversion({ '% Convers�o': '' }), 0);
+  assert.equal(findAndParseConversion({ '% Conversão': '13,4%' }), 13.4);
+  assert.equal(findAndParseConversion({ '% Conversão': 0.134 }), 13.4);
+  assert.equal(findAndParseConversion({ '% Conversão': 13.4 }), 13.4);
+  assert.equal(findAndParseConversion({ '% Conversão': null }), 0);
+  assert.equal(findAndParseConversion({ '% Conversão': '' }), 0);
 });
 
 test('parseFluxValue parses percent-like and grouped numbers', () => {

@@ -1,16 +1,22 @@
 /**
  * thermalBalance.js
- * ENGINE: ANTIGRAVITY MOTOR V3.0 (Beam Search + Exponential Penalty + Tiger Roar)
- * 
- * FEATURES V3.0:
- * 1. Beam Search (k=5): Explora múltiplas soluções paralelas.
- * 2. Tiger Roar Phase: Fase de exploração agressiva para escapar de mínimos locais.
- * 3. Penalidade Exponencial: Alpha adaptativo (2.0 a 4.0) para eliminar HotSpots.
- * 4. Determinismo: Ordenação estável com Tie-Breaker por Hash.
- * 5. Configuração Dinâmica: Perfil PEQUENA, MEDIA, GRANDE.
+ * ENGINE: ANTIGRAVITY MOTOR V4.0 (Coordinate Descent + Penalty Adaptativa)
+ *
+ * FEATURES V4.0:
+ * 1. Coordinate Descent: Otimiza TODOS os funcionários por rodada (vs. beam-width no V3).
+ * 2. Ordenação por Pressão: Prioriza funcionários cujo intervalo está em hotspot.
+ * 3. avgPressure dinâmico: Recalculado a cada rodada (threshold adaptativo).
+ * 4. Penalidade Exponencial: Alpha adaptativo mantido do V3.
+ * 5. Convergência garantida: Para quando nenhuma melhora é possível.
+ *
+ * REGRAS RESPEITADAS (inalteradas):
+ * - Intervalo mínimo 2h após entrada  (MIN_WORK_BEFORE_BREAK_SLOTS = 8 slots)
+ * - Intervalo mínimo 2h antes saída   (MIN_WORK_AFTER_BREAK_SLOTS  = 8 slots)
+ * - Duração do intervalo: 1h exata    (INTERVAL_DURATION_SLOTS     = 4 slots)
+ * - Apenas horário de intervalo é movido; entrada/saída são imutáveis.
  */
 
-// ==================== CONFIGURAÇÃO V3.0 ====================
+// ==================== CONFIGURAÇÃO V4.0 ====================
 
 const SLOTS_PER_HOUR = 4;
 const TOTAL_SLOTS = 96;
@@ -27,28 +33,22 @@ export const THERMAL_THRESHOLDS = {
     COLD: 0.80,
 };
 
-const V3_CONFIG = {
+const V4_CONFIG = {
     PEQUENA: {    // ≤ 10 funcionários
-        beamWidth: 3,
-        maxDepth: 8,
-        explorationRounds: 5,
+        maxRounds: 40,
         alphaHotspot: 3.0,
-        timeoutMs: 100
+        timeoutMs: 800,
     },
-    MEDIA: {      // 11-20 funcionários
-        beamWidth: 5,
-        maxDepth: 10,
-        explorationRounds: 15,
+    MEDIA: {      // 11-25 funcionários
+        maxRounds: 60,
         alphaHotspot: 3.5,
-        timeoutMs: 200
+        timeoutMs: 1500,
     },
-    GRANDE: {     // > 20 funcionários, Score < 75
-        beamWidth: 50,
-        maxDepth: 30,
-        explorationRounds: 100,
-        alphaHotspot: 5.0,
-        timeoutMs: 1000
-    }
+    GRANDE: {     // > 25 funcionários
+        maxRounds: 100,
+        alphaHotspot: 4.0,
+        timeoutMs: 4000,
+    },
 };
 
 // ==================== UTILS DE TEMPO & DETERMINISMO ====================
@@ -76,23 +76,12 @@ function fromSlot(slotIndex) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/**
- * Cria um hash único da solução para desempate determinístico.
- * Formato: "minEntrada-minBreak-minSaida|...|..." ordenado
- */
-function getSolutionHash(staffState) {
-    return staffState
-        .map(s => `${s.slotEntrada}-${s.slotIntervalo}-${s.slotSaida}`)
-        .sort() // Ordena strings para garantir independência da ordem do array
-        .join('|');
-}
+// ==================== MOTOR MATEMÁTICO V4.0 (CORE) ====================
 
-// ==================== MOTOR MATEMÁTICO V3.0 (CORE) ====================
-
-function detectProfile(staffCount, currentScore = 80) {
-    if (staffCount <= 10 && currentScore > 80) return 'PEQUENA';
-    if (staffCount > 20 || currentScore < 75) return 'GRANDE';
-    return 'MEDIA';
+function detectProfile(staffCount) {
+    if (staffCount <= 10) return 'PEQUENA';
+    if (staffCount <= 50) return 'MEDIA';
+    return 'GRANDE';
 }
 
 function buildFlowVector(hourlyData) {
@@ -130,49 +119,6 @@ function buildCoverageVector(staffRows) {
         }
     });
     return cov;
-}
-
-/**
- * CUSTO EXPONENCIAL V3.0
- */
-function calculateExponentialCost(coverageVector, flowVector, weightVector, config, returnMetrics = false) {
-    let totalCost = 0;
-    const alphaNormal = 2.0;
-    const alphaHotspot = config.alphaHotspot || 3.5;
-
-    let totalFlow = 0;
-    let totalCov = 0;
-    for (let i = 0; i < TOTAL_SLOTS; i++) {
-        if (flowVector[i] > 0) {
-            totalFlow += flowVector[i];
-            totalCov += coverageVector[i];
-        }
-    }
-    const avgPressure = totalCov > 0 ? totalFlow / totalCov : 0;
-    const threshold = avgPressure * 1.3;
-
-    let hotspotsCount = 0;
-
-    for (let i = 0; i < TOTAL_SLOTS; i++) {
-        const flow = flowVector[i];
-        if (flow === 0) continue;
-
-        const cov = coverageVector[i];
-        const weight = weightVector[i];
-
-        let pressure = cov > 0 ? flow / cov : flow * 10;
-
-        const isHot = (pressure >= threshold);
-        if (isHot) hotspotsCount++;
-
-        const alpha = isHot ? alphaHotspot : alphaNormal;
-        totalCost += Math.pow(pressure, alpha) * flow * weight;
-    }
-
-    if (returnMetrics) {
-        return { totalCost, avgPressure, hotspotsCount };
-    }
-    return totalCost;
 }
 
 /**
@@ -217,284 +163,113 @@ function calculateIncrementalCostDelta(currentCoverage, flowVector, weightVector
     return delta;
 }
 
-// ==================== TIGER ROAR PHASE (EXPLORATION) ====================
-
-function findHotspots(coverage, flowVector, avgPressure) {
-    const hotspots = [];
-    for (let i = 0; i < TOTAL_SLOTS; i++) {
-        if (flowVector[i] === 0) continue;
-        const p = coverage[i] > 0 ? flowVector[i] / coverage[i] : 9999;
-        if (p > avgPressure * 1.2) {
-            hotspots.push({ slot: i, pressure: p });
-        }
-    }
-    // Sort desc by pressure
-    return hotspots.sort((a, b) => b.pressure - a.pressure);
-}
-
-function tigerRoarPhase(initialNode, flowVector, weightVector, config, avgPressure) {
-    let currentState = JSON.parse(JSON.stringify(initialNode.staffState));
-    let currentCoverage = [...initialNode.coverage];
-    let currentCost = initialNode.cost;
-
-    const rounds = config.explorationRounds || 10;
-
-    for (let r = 0; r < rounds; r++) {
-        const hotspots = findHotspots(currentCoverage, flowVector, avgPressure);
-        if (hotspots.length === 0) break;
-
-        let moveMade = false;
-
-        // Tenta resolver os hotspots, do pior para o "kevlar"
-        // Para evitar ficar preso no mesmo hotspot impossível, tentamos os top 5
-        const candidateHotspots = hotspots.slice(0, 5);
-
-        for (const hp of candidateHotspots) {
-            const hotspotSlot = hp.slot;
-
-            let bestMove = null;
-            // Relaxamos a condição de "apenas melhorar". Aceitamos piora leve se resolver o hotspot?
-            // "HotSpots ficam radioativos". Então TUDO vale pra resolver.
-            let bestDelta = Infinity; // start high
-
-            for (let i = 0; i < currentState.length; i++) {
-                const emp = currentState[i];
-                const brk = emp.slotIntervalo;
-
-                const isOnBreakAtHotspot = (brk !== null && hotspotSlot >= brk && hotspotSlot < brk + INTERVAL_DURATION_SLOTS);
-                if (!isOnBreakAtHotspot) continue;
-
-                const minStart = emp.slotEntrada + MIN_WORK_BEFORE_BREAK_SLOTS;
-                const maxStart = emp.slotSaida - MIN_WORK_AFTER_BREAK_SLOTS - INTERVAL_DURATION_SLOTS;
-
-                for (let cand = minStart; cand <= maxStart; cand++) {
-                    if (cand === brk) continue;
-
-                    // Verifica se o novo lugar TAMBÉM é um hotspot crítico?
-                    // Deixa o custo decidir.
-                    const delta = calculateIncrementalCostDelta(
-                        currentCoverage, flowVector, weightVector,
-                        brk, cand, config, avgPressure
-                    );
-
-                    if (delta < bestDelta) {
-                        bestDelta = delta;
-                        bestMove = { empIdx: i, newSlot: cand };
-                    }
-                }
-            }
-
-            if (bestMove && bestDelta < 0) { // Só aceita se melhorar o custo GLOBAL (Radioativo já está no custo)
-                // Aplica Movimento
-                const emp = currentState[bestMove.empIdx];
-                const oldBreak = emp.slotIntervalo;
-                const newBreak = bestMove.newSlot;
-
-                if (oldBreak !== null) {
-                    for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++)
-                        if (oldBreak + k < TOTAL_SLOTS) currentCoverage[oldBreak + k]++;
-                }
-                for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++)
-                    if (newBreak + k < TOTAL_SLOTS) currentCoverage[newBreak + k]--;
-
-                emp.slotIntervalo = newBreak;
-                currentCost += bestDelta;
-                moveMade = true;
-                break; // Sai do loop de hotspots e vai pro proximo round (recalcula hotspots)
-            }
-        }
-
-        if (!moveMade) {
-            // Se nenhum dos top 5 hotspots permitiu movimento que melhore custo...
-            // Talvez estejamos em minimo local.
-            break;
-        }
-    }
-
-    return {
-        cost: currentCost,
-        staffState: currentState,
-        coverage: currentCoverage,
-        solutionHash: getSolutionHash(currentState)
-    };
-}
-
-// ==================== BEAM SEARCH ====================
+// ==================== COORDINATE DESCENT V4.0 ====================
 
 /**
- * Seleção Determinística Top-K
+ * coordinateDescentOptimize
+ *
+ * Otimiza TODOS os funcionários por rodada (coordinate descent puro).
+ * - avgPressure e threshold são recalculados a cada rodada.
+ * - Funcionários são ordenados por pressão no intervalo (pior hotspot primeiro).
+ * - Cada melhora é aplicada imediatamente, atualizando coverage para o próximo.
+ * - Converge quando nenhuma melhora é possível ou timeout/maxRounds atingido.
  */
-function selectTopK(candidates, k) {
-    return candidates
-        .sort((a, b) => {
-            // 1. Menor custo
-            if (Math.abs(a.cost - b.cost) > 0.0001) return a.cost - b.cost;
-            // 2. Hash determinístico (Tie-breaker)
-            // Precisamos do hash da solução RESULTANTE.
-            // O candidato tem 'parent' e 'move'. 
-            // Para não calcular hash de todos, calculamos só em caso de empate? 
-            // Para garantir estabilidade total, calculamos sempre ou usamos ID do movimento.
-
-            // Simplificação: Comparar ID do funcionário movido + slot destino
-            const moveHashA = a.move ? (a.move.empIdx * 1000 + a.move.newSlot) : 0;
-            const moveHashB = b.move ? (b.move.empIdx * 1000 + b.move.newSlot) : 0;
-            return moveHashA - moveHashB;
-        })
-        .slice(0, k);
-}
-
-function beamSearchOptimized(staffRows, flowVector, weightVector, config) {
+function coordinateDescentOptimize(staffRows, flowVector, weightVector, config) {
     const startTime = Date.now();
-    const { beamWidth, maxDepth, timeoutMs } = config;
+    const { maxRounds, timeoutMs } = config;
 
-    // --- SETUP INICIAL ---
-    const initialStaffState = staffRows.map((s, idx) => ({
+    // Build internal staff state (index-based)
+    const staffState = staffRows.map((s, idx) => ({
         id: idx,
         originalId: s.id,
         slotEntrada: s.slotEntrada,
         slotSaida: s.slotSaida,
         slotIntervalo: s.slotIntervalo,
     }));
-    const initialCoverage = buildCoverageVector(initialStaffState);
 
-    // Cache de Pressão Média
-    let totalFlow = 0, totalCov = 0;
-    for (let i = 0; i < TOTAL_SLOTS; i++) {
-        if (flowVector[i] > 0) {
-            totalFlow += flowVector[i];
-            totalCov += initialCoverage[i];
-        }
-    }
-    const avgPressure = totalCov > 0 ? totalFlow / totalCov : 0;
+    let coverage = buildCoverageVector(staffState);
 
-    const initialCost = calculateExponentialCost(initialCoverage, flowVector, weightVector, config);
-
-    let rootNode = {
-        cost: initialCost,
-        staffState: initialStaffState,
-        coverage: initialCoverage,
-        solutionHash: getSolutionHash(initialStaffState)
-    };
-
-    // --- FASE 1: TIGER ROAR (Exploração) ---
-    // Executa uma corrida gulosa focada em hotspots antes do Beam Search
-    const roaredNode = tigerRoarPhase(rootNode, flowVector, weightVector, config, avgPressure);
-
-    // Se o Tiger Roar melhorou, começamos dele. Se piorou (raro, mas possivel se heuristica falhar), mantemos original?
-    // Tiger Roar é hill climbing, só aceita melhoras (no nosso impl).
-    if (roaredNode.cost < rootNode.cost) {
-        rootNode = roaredNode;
-        // console.log(`[V3.0] Tiger Roar improved cost: ${initialCost.toFixed(0)} -> ${roaredNode.cost.toFixed(0)}`);
-    }
-
-    let beam = [rootNode];
-    let bestSolution = rootNode;
-    let noImprovementCount = 0;
-
-    // --- FASE 2: BEAM SEARCH ---
-    for (let depth = 0; depth < maxDepth; depth++) {
+    for (let round = 0; round < maxRounds; round++) {
         if (Date.now() - startTime > timeoutMs) break;
-        if (noImprovementCount >= 3) break; // Early termination
 
-        const candidates = [];
+        // Recalculate avgPressure dynamically each round
+        let totalFlow = 0;
+        let totalCov = 0;
+        for (let i = 0; i < TOTAL_SLOTS; i++) {
+            if (flowVector[i] > 0) {
+                totalFlow += flowVector[i];
+                totalCov += coverage[i];
+            }
+        }
+        const avgPressure = totalCov > 0 ? totalFlow / totalCov : 0;
 
-        // Expandir
-        for (const node of beam) {
-            for (let i = 0; i < node.staffState.length; i++) {
-                const emp = node.staffState[i];
-                const minStart = emp.slotEntrada + MIN_WORK_BEFORE_BREAK_SLOTS;
-                const maxStart = emp.slotSaida - MIN_WORK_AFTER_BREAK_SLOTS - INTERVAL_DURATION_SLOTS;
-                if (minStart >= maxStart) continue;
-
-                const currentBreak = emp.slotIntervalo;
-
-                for (let cand = minStart; cand <= maxStart; cand++) {
-                    if (cand === currentBreak) continue;
-
-                    const delta = calculateIncrementalCostDelta(
-                        node.coverage, flowVector, weightVector,
-                        currentBreak, cand, config, avgPressure
-                    );
-
-                    // Só adiciona se o custo novo for menor que o custo do pai?
-                    // Beam search pode explorar caminhos laterais, mas aqui queremos otimização.
-                    // Adicionamos todos para o rank.
-
-
-                    // Optimization: Ignorar movimentos que pioram muito?
-                    // if (delta > 0) continue; // REMOVIDO PARA PERMITIR EXPLORAÇÃO NO BEAM SEARCH
-
-
-                    candidates.push({
-                        cost: node.cost + delta,
-                        parent: node,
-                        move: { empIdx: i, newSlot: cand }
-                    });
+        // Sort employees by max pressure at their current break slot (worst hotspot first)
+        const empOrder = staffState.map((emp, idx) => {
+            let maxP = 0;
+            if (emp.slotIntervalo !== null) {
+                for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
+                    const slot = emp.slotIntervalo + k;
+                    if (slot < TOTAL_SLOTS && flowVector[slot] > 0) {
+                        const p = coverage[slot] > 0
+                            ? flowVector[slot] / coverage[slot]
+                            : flowVector[slot] * 10;
+                        if (p > maxP) maxP = p;
+                    }
                 }
             }
-        }
-
-        if (candidates.length === 0) {
-            noImprovementCount++;
-            continue;
-        }
-
-        // Seleção Determinística
-        const nextBeamCandidates = selectTopK(candidates, beamWidth);
-
-        // Materializar
-        const nextBeam = nextBeamCandidates.map(cand => {
-            const newStaffState = JSON.parse(JSON.stringify(cand.parent.staffState));
-            const newCoverage = [...cand.parent.coverage];
-            const { empIdx, newSlot } = cand.move;
-            const emp = newStaffState[empIdx];
-            const oldBreak = emp.slotIntervalo;
-
-            emp.slotIntervalo = newSlot;
-
-            if (oldBreak !== null) {
-                for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++)
-                    if (oldBreak + k < TOTAL_SLOTS) newCoverage[oldBreak + k]++;
-            }
-            for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++)
-                if (newSlot + k < TOTAL_SLOTS) newCoverage[newSlot + k]--;
-
-            return {
-                cost: cand.cost,
-                staffState: newStaffState,
-                coverage: newCoverage,
-                solutionHash: null // Hash on demand if needed, mas usamos moveHash no sort
-            };
+            return { idx, maxP };
         });
+        empOrder.sort((a, b) => b.maxP - a.maxP);
 
-        // Check Best
-        if (nextBeam[0].cost < bestSolution.cost - 0.1) {
-            bestSolution = nextBeam[0];
-            noImprovementCount = 0;
-        } else {
-            noImprovementCount++;
+        let anyImprovement = false;
+
+        for (const { idx } of empOrder) {
+            const emp = staffState[idx];
+            const minStart = emp.slotEntrada + MIN_WORK_BEFORE_BREAK_SLOTS;
+            const maxStart = emp.slotSaida - MIN_WORK_AFTER_BREAK_SLOTS - INTERVAL_DURATION_SLOTS;
+            if (minStart > maxStart) continue;
+
+            const currentBreak = emp.slotIntervalo;
+            let bestDelta = -1e-6; // Must improve by a meaningful amount
+            let bestSlot = null;
+
+            for (let cand = minStart; cand <= maxStart; cand++) {
+                if (cand === currentBreak) continue;
+                const delta = calculateIncrementalCostDelta(
+                    coverage, flowVector, weightVector,
+                    currentBreak, cand, config, avgPressure
+                );
+                if (delta < bestDelta) {
+                    bestDelta = delta;
+                    bestSlot = cand;
+                }
+            }
+
+            if (bestSlot !== null) {
+                // Apply move immediately — coverage updated for subsequent employees
+                if (currentBreak !== null) {
+                    for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
+                        if (currentBreak + k < TOTAL_SLOTS) coverage[currentBreak + k]++;
+                    }
+                }
+                for (let k = 0; k < INTERVAL_DURATION_SLOTS; k++) {
+                    if (bestSlot + k < TOTAL_SLOTS) coverage[bestSlot + k]--;
+                }
+                emp.slotIntervalo = bestSlot;
+                anyImprovement = true;
+            }
         }
 
-        beam = nextBeam;
+        if (!anyImprovement) break; // Converged — local minimum reached
     }
 
-    return bestSolution.staffState;
+    return staffState;
 }
 
 
 // ==================== INTERFACE PÚBLICA ====================
 
 export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, configInput = {}) {
-    const staffCount = staffRows.length;
-    const currentScore = configInput.currentScore || 80;
-    const profile = detectProfile(staffCount, currentScore);
-    const v3Config = V3_CONFIG[profile];
-
-    // console.log(`[ANTIGRAVITY V3.0] Perfil: ${profile}`);
-
-    const flowVector = buildFlowVector(thermalRowsByHour);
-    const weightVector = buildWeightVector(thermalRowsByHour);
-
     const dayStaff = staffRows.filter(r =>
         r.dia === selectedDay &&
         r.entrada && r.entrada.toUpperCase() !== 'FOLGA' &&
@@ -503,6 +278,12 @@ export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, 
 
     if (dayStaff.length === 0) return staffRows;
 
+    const profile = detectProfile(dayStaff.length);
+    const v4Config = V4_CONFIG[profile];
+
+    const flowVector = buildFlowVector(thermalRowsByHour);
+    const weightVector = buildWeightVector(thermalRowsByHour);
+
     const optimizableStaff = dayStaff.map(s => ({
         ...s,
         slotEntrada: toSlot(s.entrada),
@@ -510,10 +291,10 @@ export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, 
         slotIntervalo: s.intervalo ? toSlot(s.intervalo) : null
     }));
 
-    const finalState = beamSearchOptimized(optimizableStaff, flowVector, weightVector, v3Config);
+    const finalState = coordinateDescentOptimize(optimizableStaff, flowVector, weightVector, v4Config);
 
     const resultRows = staffRows.map(row => {
-        const opt = finalState.find(o => o.originalId === row.id); // Usar originalId
+        const opt = finalState.find(o => o.originalId === row.id);
         if (opt) {
             return { ...row, intervalo: fromSlot(opt.slotIntervalo) };
         }

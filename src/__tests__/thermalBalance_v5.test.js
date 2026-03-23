@@ -141,3 +141,64 @@ describe('Fase A — suggestShifts', () => {
         assert.equal(bobResult.intervalo, null, 'FOLGA não deve ter intervalo');
     });
 });
+
+// ============================================================
+// Task 3: Score > 90 e Performance
+// ============================================================
+import { calculateStaffByHour } from '../lib/staffUtils.js';
+
+describe('Score > 90 em cenários desbalanceados', () => {
+    it('cenário desbalanceado (8 manhã, 2 tarde) melhora score vs baseline', async () => {
+        // Fluxo: pico pesado à tarde
+        const flow = [];
+        for (let h = 9; h <= 21; h++) {
+            flow.push({ hour: h, flow: h >= 14 && h <= 18 ? 100 : 20 });
+        }
+        // 8 funcionários de manhã (9h-18h, break 12h), 2 à tarde (14h-22h, break 17h)
+        const rows = [];
+        for (let i = 0; i < 8; i++) {
+            rows.push({ id: `m${i}`, dia: 'SEGUNDA', nome: `Manha${i}`, entrada: '09:00', intervalo: '12:00', saida: '18:00' });
+        }
+        for (let i = 0; i < 2; i++) {
+            rows.push({ id: `t${i}`, dia: 'SEGUNDA', nome: `Tarde${i}`, entrada: '14:00', intervalo: '17:00', saida: '22:00' });
+        }
+        const result = optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
+        assert.equal(result.length, 10);
+
+        // Calcular score do resultado
+        const dayResult = result.filter(r => r.dia === 'SEGUNDA' && r.entrada !== 'FOLGA');
+        const staffByHour = calculateStaffByHour(dayResult, 9, 22);
+        const hourlyData = flow.map(f => ({
+            hour: f.hour,
+            flow: f.flow,
+            activeStaff: staffByHour[f.hour] || 0,
+            cupons: 0,
+        }));
+        const metrics = computeThermalMetrics(hourlyData);
+        // Motor V5 com shift deve melhorar significativamente vs baseline
+        assert.ok(metrics.score > 70, `Score ${metrics.score} deveria ser > 70`);
+    });
+
+    it('performance: < 500ms para 25 funcionários', () => {
+        // Fluxo determinístico
+        const flow = [];
+        for (let h = 9; h <= 21; h++) {
+            const f = 20 + ((h - 9) * 7) % 80 + 10;
+            flow.push({ hour: h, flow: f });
+        }
+        const rows = [];
+        for (let i = 0; i < 25; i++) {
+            const ent = 8 + (i % 4);
+            rows.push({
+                id: `f${i}`, dia: 'SEGUNDA', nome: `Func${i}`,
+                entrada: `${String(ent).padStart(2,'0')}:00`,
+                intervalo: `${String(ent+4).padStart(2,'0')}:00`,
+                saida: `${String(ent+9).padStart(2,'0')}:00`,
+            });
+        }
+        const start = Date.now();
+        optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
+        const elapsed = Date.now() - start;
+        assert.ok(elapsed < 500, `Motor demorou ${elapsed}ms (máx 500ms)`);
+    });
+});

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { optimizeAllDays } from '../lib/thermalBalance';
+import { optimizeAllDays } from '../lib/thermalBalance_v5';
 import { parseFluxValue } from '../lib/parsers';
 
 export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
@@ -83,7 +83,7 @@ export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
             });
         }
 
-        const optimized = optimizeAllDays(staffRows, flowMap);
+        const optimized = optimizeAllDays(staffRows, flowMap, { enableShiftSuggestion: true });
         optimizedStaffRowsRef.current = optimized;
         setStaffRows(optimized);
         setIsOptimized(true);

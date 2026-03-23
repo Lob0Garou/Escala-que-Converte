@@ -185,6 +185,7 @@ const Dashboard = () => {
               cuponsData={cuponsData}
               salesData={salesData}
               error={error}
+              onEscalaProcessed={handleEscalaProcessed}
             />
           </div>
         ) : (
@@ -232,6 +233,7 @@ const Dashboard = () => {
                 cuponsData={cuponsData}
                 salesData={salesData}
                 error={error}
+                onEscalaProcessed={handleEscalaProcessed}
               />
             </div>
           </div>

@@ -1,9 +1,10 @@
 import React from 'react';
 import { Upload } from 'lucide-react';
 import UploadBox from './UploadBox';
+import ImageUploader from './ImageUploader';
 
-export const UploadSection = ({ handleFileUpload, handleDrag, handleDrop, dragActive, setDragActive, cuponsData, salesData, error }) => (
-  <section className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 h-full items-center max-w-7xl mx-auto w-full">
+export const UploadSection = ({ handleFileUpload, handleDrag, handleDrop, dragActive, setDragActive, cuponsData, salesData, error, onEscalaProcessed }) => (
+  <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6 h-full items-center max-w-7xl mx-auto w-full">
     <UploadBox
       type="cupons"
       title="Fluxo de Loja"
@@ -54,6 +55,8 @@ export const UploadSection = ({ handleFileUpload, handleDrag, handleDrop, dragAc
       data={salesData || []}
       errorState={error.vendas}
     />
+
+    <ImageUploader onImageProcessed={onEscalaProcessed} />
   </section>
 );
 

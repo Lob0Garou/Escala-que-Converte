@@ -4,8 +4,9 @@ import KPICards from '../insights/KPICards';
 import ThermalPanel from '../insights/ThermalPanel';
 import RevenueImpactSection from '../insights/RevenueImpactSection';
 import DailyStaffList from '../staff/DailyStaffList';
+import StaffRanking from '../staff/StaffRanking';
 
-export const MainContent = ({ chartData, dailyMetrics, thermalMetrics, staffRows, selectedDay, onTimeClick, isOptimized, onOptimize, onToggleOptimized, revenueMetrics, revenueConfig }) => {
+export const MainContent = ({ chartData, dailyMetrics, thermalMetrics, staffRows, selectedDay, onTimeClick, isOptimized, onOptimize, onToggleOptimized, revenueMetrics, revenueConfig, cuponsData, diasSemana }) => {
   return (
     <main className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-6 w-full">
       <aside className="xl:col-span-3 flex flex-col bg-[#11141a]/60 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-xl overflow-hidden h-full min-w-0 transition-all duration-300 hover:border-white/10 p-4">
@@ -27,6 +28,12 @@ export const MainContent = ({ chartData, dailyMetrics, thermalMetrics, staffRows
 
         <KPICards dailyMetrics={dailyMetrics} revenueMetrics={revenueMetrics} />
         <ThermalPanel thermalMetrics={thermalMetrics} />
+        <StaffRanking
+          staffRows={staffRows}
+          cuponsData={cuponsData}
+          selectedDay={selectedDay}
+          diasSemana={diasSemana}
+        />
       </section>
     </main>
   );

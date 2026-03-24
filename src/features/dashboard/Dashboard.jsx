@@ -212,6 +212,8 @@ const Dashboard = () => {
                 chartType={chartType}
                 activeTab={activeTab}
                 theme={theme}
+                cuponsData={cuponsData}
+                diasSemana={diasSemana}
               />
               <div className="px-6 pb-10">
                 <WeeklyScaleView staffRows={staffRows} onTimeClick={openTimePicker} />

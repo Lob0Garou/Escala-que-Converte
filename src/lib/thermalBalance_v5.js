@@ -1,22 +1,30 @@
 // src/lib/thermalBalance_v5.js
 /**
  * thermalBalance_v5.js
- * ENGINE: ANTIGRAVITY MOTOR V5.0
+ * ENGINE: ANTIGRAVITY MOTOR V5.1
  *
- * 3 fases: Shift Suggestion → Coordinate Descent 15min → Opportunity Weighting
+ * 3 fases (nova ordem): Intervalos → Shift (somente FLEX) → Intervalos refinamento
+ * + Classificação opener/closer/flex
+ * + µ dinâmico (recalculado a cada round)
+ * + Ponderação por conversão (Fase C)
  *
  * Drop-in replacement para V4. Mesma interface pública.
  */
 
 // ============================================================
-// FASE A: SHIFT SUGGESTION
+// CONSTANTES
 // ============================================================
 
 const SLOTS_PER_HOUR = 4;
 const TOTAL_SLOTS = 96;
-const INTERVAL_DURATION_SLOTS = 4;
-const MIN_WORK_BEFORE_BREAK_SLOTS = 8;
-const MIN_WORK_AFTER_BREAK_SLOTS = 8;
+const TOTAL_HOURS = 24;
+const INTERVAL_DURATION_SLOTS = 4;          // 1h de intervalo
+const MIN_WORK_BEFORE_BREAK_SLOTS = 8;      // 2h antes do intervalo
+const MIN_WORK_AFTER_BREAK_SLOTS = 8;       // 2h depois do intervalo
+
+// ============================================================
+// HELPERS DE SLOT
+// ============================================================
 
 function toSlot(timeInput) {
     if (timeInput === null || timeInput === undefined || timeInput === '') return null;
@@ -41,6 +49,74 @@ function fromSlot(slotIndex) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function toHour(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const parts = timeStr.split(':');
+    return parseInt(parts[0], 10);
+}
+
+// ============================================================
+// STORE HOURS & CLASSIFICAÇÃO
+// ============================================================
+
+/**
+ * getStoreHours — Deriva horário de operação da loja a partir do flowData.
+ * Retorna {min, max} baseado nas horas com flow > 0.
+ * Fallback para {min: 6, max: 22} se não houver dados.
+ */
+export function getStoreHours(hourlyFlowData) {
+    if (!hourlyFlowData || hourlyFlowData.length === 0) {
+        return { min: 6, max: 22 };
+    }
+    let min = 24, max = 0;
+    hourlyFlowData.forEach(h => {
+        if ((h.flow || 0) > 0) {
+            if (h.hour < min) min = h.hour;
+            if (h.hour + 1 > max) max = h.hour + 1;
+        }
+    });
+    if (min >= max) {
+        return { min: 6, max: 22 };
+    }
+    return { min, max };
+}
+
+/**
+ * classifyStaff — Classifica cada funcionário como opener, closer ou flex.
+ *
+ * opener: entrada antes do início do fluxo (prepara loja)
+ * closer: saída depois do fim do fluxo (fecha loja)
+ * flex:   todos os demais (podem ter turno ajustado)
+ *
+ * Um funcionário pode ser opener E closer ao mesmo tempo.
+ */
+export function classifyStaff(staffRows, storeHours) {
+    return staffRows.map(row => {
+        if (!row.entrada || row.entrada.toUpperCase() === 'FOLGA' || !row.saida) {
+            return { ...row, role: 'folga' };
+        }
+        const entH = toHour(row.entrada);
+        const saiH = toHour(row.saida);
+        const saiMin = toSlot(row.saida);
+        // saída real em horas (com minutos, ex: 22:30 → 22.5)
+        const saidaDecimal = saiMin !== null ? (saiMin * 15) / 60 : saiH;
+
+        const isOpener = entH !== null && entH < storeHours.min;
+        const isCloser = saidaDecimal !== null && saidaDecimal > storeHours.max;
+
+        let role = 'flex';
+        if (isOpener && isCloser) role = 'opener+closer';
+        else if (isOpener) role = 'opener';
+        else if (isCloser) role = 'closer';
+
+        return { ...row, role };
+    });
+}
+
+// ============================================================
+// FLOW VECTORS
+// ============================================================
+
 function buildHourlyFlow(hourlyData) {
     const v = new Array(TOTAL_SLOTS).fill(0);
     if (!hourlyData) return v;
@@ -55,16 +131,92 @@ function buildHourlyFlow(hourlyData) {
 }
 
 /**
+ * buildWeightedFlowVector — Fase C
+ * Pondera o flow por conversão: horas com conversão acima da média ganham peso extra.
+ */
+function buildWeightedFlowVector(hourlyFlowData) {
+    const base = buildHourlyFlow(hourlyFlowData);
+    if (!hourlyFlowData || hourlyFlowData.length === 0) return base;
+
+    // Calcular conversão média
+    const withConv = hourlyFlowData.filter(h => h.conversion > 0 && h.flow > 0);
+    if (withConv.length === 0) return base;
+
+    const avgConv = withConv.reduce((s, h) => s + h.conversion, 0) / withConv.length;
+    if (avgConv <= 0) return base;
+
+    // Criar mapa de peso por hora
+    const weightByHour = {};
+    hourlyFlowData.forEach(h => {
+        if (h.conversion > 0 && h.flow > 0) {
+            // Peso entre 0.8 e 1.5 baseado na conversão relativa
+            const ratio = h.conversion / avgConv;
+            weightByHour[h.hour] = Math.max(0.8, Math.min(1.5, ratio));
+        }
+    });
+
+    // Aplicar peso
+    const weighted = new Array(TOTAL_SLOTS).fill(0);
+    for (let h = 0; h < TOTAL_HOURS; h++) {
+        const w = weightByHour[h] ?? 1.0;
+        for (let s = 0; s < SLOTS_PER_HOUR; s++) {
+            weighted[h * SLOTS_PER_HOUR + s] = base[h * SLOTS_PER_HOUR + s] * w;
+        }
+    }
+    return weighted;
+}
+
+// ============================================================
+// COBERTURA HOURLY
+// ============================================================
+
+function buildHourlyCoverage(staffState) {
+    const cov = new Array(TOTAL_HOURS).fill(0);
+    staffState.forEach(emp => {
+        if (emp.slotEntrada === null || emp.slotSaida === null) return;
+        const eH = Math.floor(emp.slotEntrada / SLOTS_PER_HOUR);
+        const oH = Math.floor(emp.slotSaida / SLOTS_PER_HOUR);
+        const bH = emp.slotIntervalo !== null ? Math.floor(emp.slotIntervalo / SLOTS_PER_HOUR) : null;
+        for (let h = eH; h < oH && h < TOTAL_HOURS; h++) {
+            if (bH !== null && h === bH) continue;
+            cov[h]++;
+        }
+    });
+    return cov;
+}
+
+function buildHourlyFlowArray(flowVector) {
+    const hourly = new Array(TOTAL_HOURS).fill(0);
+    for (let h = 0; h < TOTAL_HOURS; h++) {
+        for (let s = 0; s < SLOTS_PER_HOUR; s++) {
+            hourly[h] += flowVector[h * SLOTS_PER_HOUR + s];
+        }
+    }
+    return hourly;
+}
+
+function computeMu(hourlyFlow, hourCov) {
+    let totalFlow = 0, totalCov = 0;
+    for (let h = 0; h < TOTAL_HOURS; h++) {
+        if (hourlyFlow[h] > 0) {
+            totalFlow += hourlyFlow[h];
+            totalCov += hourCov[h];
+        }
+    }
+    return totalCov > 0 ? totalFlow / totalCov : 0;
+}
+
+// ============================================================
+// FASE A: SHIFT SUGGESTION (somente FLEX)
+// ============================================================
+
+/**
  * suggestShifts — Fase A
  *
- * Dado fluxo hourly, desloca TURNOS (entrada+intervalo+saída juntos em ±maxShiftHours)
- * para cobrir o pico de fluxo. Retorna rows com horários potencialmente modificados.
- *
- * Regras:
- * - Desloca turno inteiro por±maxShiftHours slots (default ±4 slots = ±1h)
- * - Mantém carga horária idêntica (entrada e saída se movem juntas)
- * - Não desloca FOLGA
- * - Não movimenta intervalos intra-turno (apenas shift whole-shift)
+ * Desloca TURNOS inteiros (entrada+intervalo+saída) por ±maxShiftHours.
+ * Somente funcionários FLEX são movidos.
+ * Opener/closer mantêm entrada e saída inalteradas.
+ * Garante que nenhuma hora com flow>0 fique com 0 staff após shift.
  */
 export function suggestShifts(staffRows, hourlyFlowData, opts = {}) {
     const maxShiftHours = opts.maxShiftHours ?? 1;
@@ -74,120 +226,167 @@ export function suggestShifts(staffRows, hourlyFlowData, opts = {}) {
         return staffRows.map(r => ({ ...r }));
     }
 
-    // Build slot-level flow
+    const storeHours = getStoreHours(hourlyFlowData);
     const flowSlots = buildHourlyFlow(hourlyFlowData);
+    const hourlyFlow = buildHourlyFlowArray(flowSlots);
 
-    // Aggregate to hourly for faster peak detection
-    const hourlyFlow = hourlyFlowData.map(h => ({ hour: h.hour, flow: h.flow || 0 }));
+    // Classificar staff
+    const classified = classifyStaff(staffRows, storeHours);
+    const results = classified.map(r => ({ ...r }));
 
-    // Find peak hour
+    // Build cobertura global (será atualizado a cada employee processado)
+    const globalCov = new Array(TOTAL_HOURS).fill(0);
+    const buildCovFromResults = () => {
+        globalCov.fill(0);
+        results.forEach(r => {
+            if (r.role === 'folga') return;
+            const sE = toSlot(r.entrada);
+            const sS = toSlot(r.saida);
+            const sI = r.intervalo ? toSlot(r.intervalo) : null;
+            if (sE === null || sS === null) return;
+            const eH = Math.floor(sE / SLOTS_PER_HOUR);
+            const oH = Math.floor(sS / SLOTS_PER_HOUR);
+            const bH = sI !== null ? Math.floor(sI / SLOTS_PER_HOUR) : null;
+            for (let h = eH; h < oH && h < TOTAL_HOURS; h++) {
+                if (bH !== null && h === bH) continue;
+                globalCov[h]++;
+            }
+        });
+    };
+    buildCovFromResults();
+
+    // Encontrar peak hour
     let peakHour = 0, peakFlow = 0;
-    hourlyFlow.forEach(h => {
-        if (h.flow > peakFlow) {
-            peakFlow = h.flow;
-            peakHour = h.hour;
+    for (let h = 0; h < TOTAL_HOURS; h++) {
+        if (hourlyFlow[h] > peakFlow) {
+            peakFlow = hourlyFlow[h];
+            peakHour = h;
         }
-    });
+    }
 
-    return staffRows.map(row => {
-        // Skip FOLGA or rows without valid schedule
-        if (!row.entrada || row.entrada.toUpperCase() === 'FOLGA' || !row.saida) {
-            return { ...row };
-        }
+    for (let idx = 0; idx < results.length; idx++) {
+        const row = results[idx];
+
+        // SKIP: folga, opener, closer — somente FLEX pode ter turno movido
+        if (row.role !== 'flex') continue;
 
         const slotEntrada = toSlot(row.entrada);
-        const slotSaida   = toSlot(row.saida);
+        const slotSaida = toSlot(row.saida);
         const slotIntervalo = row.intervalo ? toSlot(row.intervalo) : null;
 
-        if (slotEntrada === null || slotSaida === null || slotIntervalo === null) {
-            return { ...row };
-        }
+        if (slotEntrada === null || slotSaida === null || slotIntervalo === null) continue;
 
         const entH = Math.floor(slotEntrada / SLOTS_PER_HOUR);
-        const outH = Math.floor(slotSaida   / SLOTS_PER_HOUR);
+        const outH = Math.floor(slotSaida / SLOTS_PER_HOUR);
         const brkH = Math.floor(slotIntervalo / SLOTS_PER_HOUR);
 
-        // Compute total shift possible given constraints
-        // We can shift the whole shift by [-maxShiftSlots, +maxShiftSlots]
-        // but respecting: entH >= 6 (6h) and outH <= 22 (22h)
-        // and break must stay within [entH+2, outH-3]
-
         let bestShiftSlots = 0;
-        let bestScore = computeShiftScore(flowSlots, entH, outH, brkH, peakHour);
+        let bestCostDelta = 0; // negativo = melhoria
 
         for (let shift = -maxShiftSlots; shift <= maxShiftSlots; shift += SLOTS_PER_HOUR) {
-            const newEntH = entH + Math.floor(shift / SLOTS_PER_HOUR);
-            const newOutH = outH + Math.floor(shift / SLOTS_PER_HOUR);
+            if (shift === 0) continue;
 
-            // Hard boundaries: 6h-22h
-            if (newEntH < 6 || newOutH > 22) continue;
+            const delta = Math.floor(shift / SLOTS_PER_HOUR);
+            const newEntH = entH + delta;
+            const newOutH = outH + delta;
+            const newBrkH = brkH + delta;
 
-            // Check break constraints with new shift
-            const newBrkH = brkH + Math.floor(shift / SLOTS_PER_HOUR);
-            const MIN_WORK_H  = MIN_WORK_BEFORE_BREAK_SLOTS / SLOTS_PER_HOUR; // 2
-            const MIN_AFTER_H = MIN_WORK_AFTER_BREAK_SLOTS  / SLOTS_PER_HOUR; // 2
-            const BREAK_DUR_H = INTERVAL_DURATION_SLOTS     / SLOTS_PER_HOUR; // 1
+            // Respeitar horário de loja
+            if (newEntH < storeHours.min || newOutH > storeHours.max) continue;
 
-            const minBrkH = newEntH + MIN_WORK_H;
-            const maxBrkH = newOutH - MIN_AFTER_H - BREAK_DUR_H;
+            // µ recalculado para cada candidato usando globalCov ATUAL (dinâmico)
+            const mu = computeMu(hourlyFlow, globalCov);
 
+            // Validar intervalo CLT
+            const minBrkH = newEntH + MIN_WORK_BEFORE_BREAK_SLOTS / SLOTS_PER_HOUR;
+            const maxBrkH = newOutH - MIN_WORK_AFTER_BREAK_SLOTS / SLOTS_PER_HOUR - 1;
             if (newBrkH < minBrkH || newBrkH > maxBrkH) continue;
 
-            const score = computeShiftScore(flowSlots, newEntH, newOutH, newBrkH, peakHour);
+            // Verificar que não cria gap (hora com flow>0 e 0 staff)
+            let createsGap = false;
+            for (let h = entH; h < outH && h < TOTAL_HOURS; h++) {
+                if (h === brkH) continue;
+                if (globalCov[h] - 1 <= 0 && hourlyFlow[h] > 0) {
+                    if (h < newEntH || h >= newOutH || h === newBrkH) {
+                        createsGap = true;
+                        break;
+                    }
+                }
+            }
+            if (createsGap) continue;
 
-            if (score < bestScore) {
-                bestScore = score;
+            // Avaliar impacto real no score térmico global (µ agora dinâmico por candidato).
+            let costDelta = 0;
+            // Horas que perdem cobertura (este funcionário sai)
+            for (let h = entH; h < outH && h < TOTAL_HOURS; h++) {
+                if (h === brkH) continue;
+                if (h >= newEntH && h < newOutH && h !== newBrkH) continue; // hora mantida
+                if (hourlyFlow[h] <= 0 || globalCov[h] <= 0) continue;
+                const pBefore = hourlyFlow[h] / globalCov[h];
+                const devBefore = Math.abs(pBefore / mu - 1) * hourlyFlow[h];
+                if (globalCov[h] === 1) {
+                    // Último staff sai → hora excluída do score (melhora loss)
+                    costDelta -= devBefore;
+                } else {
+                    const pAfter = hourlyFlow[h] / (globalCov[h] - 1);
+                    costDelta += (Math.abs(pAfter / mu - 1) - Math.abs(pBefore / mu - 1)) * hourlyFlow[h];
+                }
+            }
+            // Horas que ganham cobertura (este funcionário entra)
+            for (let h = newEntH; h < newOutH && h < TOTAL_HOURS; h++) {
+                if (h === newBrkH) continue;
+                if (h >= entH && h < outH && h !== brkH) continue; // hora mantida
+                if (hourlyFlow[h] <= 0) continue;
+                const pAfter = hourlyFlow[h] / (globalCov[h] + 1);
+                const devAfter = Math.abs(pAfter / mu - 1) * hourlyFlow[h];
+                if (globalCov[h] === 0) {
+                    // Hora vazia → entra no score com devAfter (piora loss, não é ganho)
+                    costDelta += devAfter;
+                } else {
+                    const pBefore = hourlyFlow[h] / globalCov[h];
+                    costDelta += (Math.abs(pAfter / mu - 1) - Math.abs(pBefore / mu - 1)) * hourlyFlow[h];
+                }
+            }
+
+            if (costDelta < bestCostDelta) {
+                bestCostDelta = costDelta;
                 bestShiftSlots = shift;
             }
         }
 
-        if (bestShiftSlots === 0) {
-            return { ...row };
-        }
+        if (bestShiftSlots === 0) continue;
 
-        const newSlotEntrada  = slotEntrada  + bestShiftSlots;
-        const newSlotSaida    = slotSaida    + bestShiftSlots;
-        const newSlotIntervalo = slotIntervalo + bestShiftSlots;
+        const newSlotE = slotEntrada + bestShiftSlots;
+        const newSlotS = slotSaida + bestShiftSlots;
+        const newSlotI = slotIntervalo + bestShiftSlots;
 
-        return {
+        results[idx] = {
             ...row,
-            entrada:  fromSlot(newSlotEntrada),
-            saida:    fromSlot(newSlotSaida),
-            intervalo: fromSlot(newSlotIntervalo),
+            entrada: fromSlot(newSlotE),
+            saida: fromSlot(newSlotS),
+            intervalo: fromSlot(newSlotI),
         };
-    });
+
+        // Recalcular globalCov com todos os shifts processados até agora
+        // Isto garante que µ no próximo employee usa cobertura real (dinâmica)
+        buildCovFromResults();
+    }
+
+    return results;
 }
 
-function computeShiftScore(flowSlots, entH, outH, brkH, peakHour) {
-    // Score = weighted sum of |pressure_h - pressure_peak| for all hours in shift
-    // Lower is better = closer to peak coverage
+function computeShiftScore(hourlyFlow, entH, outH, brkH, peakHour) {
     let score = 0;
-    const BREAK_DUR_H = INTERVAL_DURATION_SLOTS / SLOTS_PER_HOUR; // 1
-
+    const peakPressure = hourlyFlow[peakHour] || 0;
     for (let h = entH; h < outH; h++) {
-        if (h >= brkH && h < brkH + BREAK_DUR_H) continue; // skip break hours
-        const pressure_h = getSlotPressure(flowSlots, h);
-        const pressure_peak = getSlotPressure(flowSlots, peakHour);
-        score += Math.abs(pressure_h - pressure_peak);
+        if (h === brkH) continue;
+        score += Math.abs((hourlyFlow[h] || 0) - peakPressure);
     }
     return score;
 }
 
-function getSlotPressure(flowSlots, hour) {
-    let totalFlow = 0;
-    let count = 0;
-    for (let s = 0; s < SLOTS_PER_HOUR; s++) {
-        const slot = hour * SLOTS_PER_HOUR + s;
-        if (flowSlots[slot] > 0) {
-            totalFlow += flowSlots[slot];
-            count++;
-        }
-    }
-    return count > 0 ? totalFlow / count : 0;
-}
-
 // ============================================================
-// FASE B: COORDINATE DESCENT 15MIN (V5)
+// FASE B: COORDINATE DESCENT 15MIN (V5.1 — µ dinâmico)
 // ============================================================
 
 export const THERMAL_THRESHOLDS = {
@@ -200,21 +399,9 @@ export const THERMAL_THRESHOLDS = {
 };
 
 const V5_CONFIG = {
-    PEQUENA: {    // ≤ 10 funcionários
-        maxRounds: 40,
-        alphaHotspot: 3.0,
-        timeoutMs: 800,
-    },
-    MEDIA: {      // 11-25 funcionários
-        maxRounds: 60,
-        alphaHotspot: 3.5,
-        timeoutMs: 1500,
-    },
-    GRANDE: {     // > 25 funcionários
-        maxRounds: 100,
-        alphaHotspot: 4.0,
-        timeoutMs: 4000,
-    },
+    PEQUENA: { maxRounds: 40, alphaHotspot: 3.0, timeoutMs: 800 },
+    MEDIA:   { maxRounds: 60, alphaHotspot: 3.5, timeoutMs: 1500 },
+    GRANDE:  { maxRounds: 100, alphaHotspot: 4.0, timeoutMs: 4000 },
 };
 
 function detectProfile(staffCount) {
@@ -226,76 +413,43 @@ function detectProfile(staffCount) {
 /**
  * coordinateDescentV5 — Fase B
  *
- * Coordinate Descent com granularidade de 15 MIN (slot-level).
- * Funcionamento:
- * 1. Para cada funcionário, tenta mover slotIntervalo em ±1 slot (15min)
- * 2. Avalia custo direto: Σ |pressure_h - µ| × flow_h em horas afetadas
- * 3. Aplica o melhor movimento se melhorar o custo
- * 4. Repete por maxRounds ou até convergir
- *
- * Diferença do V4 (hour-level): permite ajustes mais precisos,
- * especialmente para turnos curtos ou intervalos muito específicos.
+ * Coordinate Descent com µ DINÂMICO (recalculado a cada round).
+ * Move intervalos para minimizar desvio térmico ponderado.
  */
-function coordinateDescentV5(staffRows, flowVector, _weightVector, config) {
+function coordinateDescentV5(staffState, flowVector, weightVector, config) {
     const startTime = Date.now();
     const { maxRounds, timeoutMs } = config;
-    const TOTAL_HOURS = 24;
 
-    // Hourly flow
-    const hourlyFlow = new Array(TOTAL_HOURS).fill(0);
-    for (let h = 0; h < TOTAL_HOURS; h++) {
-        for (let s = 0; s < SLOTS_PER_HOUR; s++) {
-            hourlyFlow[h] += flowVector[h * SLOTS_PER_HOUR + s];
-        }
-    }
+    // Usar flow ponderado (Fase C) se disponível
+    const effectiveFlow = weightVector || flowVector;
+
+    const hourlyFlow = buildHourlyFlowArray(effectiveFlow);
 
     // Map to slot-level state
-    const staffState = staffRows.map((s, idx) => ({
+    const state = staffState.map((s, idx) => ({
         id: idx,
-        originalId: s.id,
-        slotEntrada:  s.slotEntrada,
-        slotSaida:    s.slotSaida,
+        originalId: s.originalId ?? s.id,
+        slotEntrada: s.slotEntrada,
+        slotSaida: s.slotSaida,
         slotIntervalo: s.slotIntervalo,
     }));
 
     // Build hourly coverage
-    const hourCov = new Array(TOTAL_HOURS).fill(0);
-    staffState.forEach(emp => {
-        const entH = Math.floor(emp.slotEntrada / SLOTS_PER_HOUR);
-        const outH = Math.floor(emp.slotSaida   / SLOTS_PER_HOUR);
-        const brkH = emp.slotIntervalo !== null ? Math.floor(emp.slotIntervalo / SLOTS_PER_HOUR) : null;
-        for (let h = entH; h < outH && h < TOTAL_HOURS; h++) {
-            if (brkH !== null && h === brkH) continue;
-            hourCov[h]++;
-        }
-    });
-
-    // µ = totalFlow / totalCov
-    let totalFlow = 0, totalCov = 0;
-    for (let h = 0; h < TOTAL_HOURS; h++) {
-        if (hourlyFlow[h] > 0) {
-            totalFlow += hourlyFlow[h];
-            totalCov += hourCov[h];
-        }
-    }
-    const mu = totalCov > 0 ? totalFlow / totalCov : 0;
-    if (mu === 0) {
-        return staffState.map(emp => ({
-            id: emp.id, originalId: emp.originalId,
-            slotEntrada: emp.slotEntrada, slotSaida: emp.slotSaida,
-            slotIntervalo: emp.slotIntervalo,
-        }));
-    }
+    const hourCov = buildHourlyCoverage(state);
 
     for (let round = 0; round < maxRounds; round++) {
         if (Date.now() - startTime > timeoutMs) break;
 
-        // Sort by |pressure_at_brkH - µ| desc
-        const empOrder = staffState.map((emp, idx) => {
+        // µ DINÂMICO — recalculado a cada round
+        const mu = computeMu(hourlyFlow, hourCov);
+        if (mu === 0) break;
+
+        // Ordenar por prioridade: quem está na hora com maior desvio térmico
+        const empOrder = state.map((emp, idx) => {
             let priority = 0;
             const brkH = emp.slotIntervalo !== null ? Math.floor(emp.slotIntervalo / SLOTS_PER_HOUR) : null;
             if (brkH !== null && hourlyFlow[brkH] > 0 && hourCov[brkH] > 0) {
-                priority = Math.abs(hourlyFlow[brkH] / hourCov[brkH] - mu);
+                priority = Math.abs(hourlyFlow[brkH] / hourCov[brkH] - mu) * hourlyFlow[brkH];
             }
             return { idx, priority };
         });
@@ -304,43 +458,38 @@ function coordinateDescentV5(staffRows, flowVector, _weightVector, config) {
         let anyImprovement = false;
 
         for (const { idx } of empOrder) {
-            const emp = staffState[idx];
-
-            const entH = Math.floor(emp.slotEntrada / SLOTS_PER_HOUR);
-            const outH = Math.floor(emp.slotSaida   / SLOTS_PER_HOUR);
-
-            const MIN_WORK_H  = MIN_WORK_BEFORE_BREAK_SLOTS / SLOTS_PER_HOUR; // 2
-            const MIN_AFTER_H = MIN_WORK_AFTER_BREAK_SLOTS  / SLOTS_PER_HOUR; // 2
-            const BREAK_DUR_H = INTERVAL_DURATION_SLOTS     / SLOTS_PER_HOUR; // 1
+            const emp = state[idx];
+            if (emp.slotIntervalo === null) continue;
 
             const minBrkSlot = emp.slotEntrada + MIN_WORK_BEFORE_BREAK_SLOTS;
-            const maxBrkSlot = emp.slotSaida   - MIN_WORK_AFTER_BREAK_SLOTS - INTERVAL_DURATION_SLOTS;
-
+            const maxBrkSlot = emp.slotSaida - MIN_WORK_AFTER_BREAK_SLOTS - INTERVAL_DURATION_SLOTS;
             if (minBrkSlot > maxBrkSlot) continue;
 
             const curBrkSlot = emp.slotIntervalo;
+            const curH = Math.floor(curBrkSlot / SLOTS_PER_HOUR);
             let bestDelta = -1e-9;
             let bestBrkSlot = null;
 
-            // Try ±1 slot (15min) movements
             for (let candSlot = minBrkSlot; candSlot <= maxBrkSlot; candSlot++) {
                 if (candSlot === curBrkSlot) continue;
 
                 const candH = Math.floor(candSlot / SLOTS_PER_HOUR);
-                const curH  = Math.floor(curBrkSlot / SLOTS_PER_HOUR);
+                if (candH === curH) continue; // Só avaliar quando muda de hora
 
                 let delta = 0;
 
-                // Candidate hour: employee goes on break → cov decreases
+                // Hora candidata: break vai pra cá → cov diminui
                 if (hourlyFlow[candH] > 0) {
                     const c0 = hourCov[candH];
                     const p0 = c0 > 0 ? hourlyFlow[candH] / c0 : hourlyFlow[candH] * 10;
                     const p1 = c0 > 1 ? hourlyFlow[candH] / (c0 - 1) : hourlyFlow[candH] * 10;
+                    // Não permitir mover break para hora com cobertura mínima
+                    if (c0 <= 1 && hourlyFlow[candH] > 0) continue;
                     delta += (Math.abs(p1 - mu) - Math.abs(p0 - mu)) * hourlyFlow[candH];
                 }
 
-                // Old break hour: employee returns → cov increases
-                if (curBrkSlot !== null && hourlyFlow[curH] > 0) {
+                // Hora antiga: break sai daqui → cov aumenta
+                if (hourlyFlow[curH] > 0) {
                     const c0 = hourCov[curH];
                     const p0 = c0 > 0 ? hourlyFlow[curH] / c0 : hourlyFlow[curH] * 10;
                     const p1 = hourlyFlow[curH] / (c0 + 1);
@@ -354,7 +503,6 @@ function coordinateDescentV5(staffRows, flowVector, _weightVector, config) {
             }
 
             if (bestBrkSlot !== null) {
-                const curH = Math.floor(curBrkSlot / SLOTS_PER_HOUR);
                 const newH = Math.floor(bestBrkSlot / SLOTS_PER_HOUR);
                 if (curH !== newH) {
                     hourCov[curH]++;
@@ -368,84 +516,160 @@ function coordinateDescentV5(staffRows, flowVector, _weightVector, config) {
         if (!anyImprovement) break;
     }
 
-    return staffState.map(emp => ({
-        id:           emp.id,
-        originalId:   emp.originalId,
-        slotEntrada:  emp.slotEntrada,
-        slotSaida:    emp.slotSaida,
-        slotIntervalo: emp.slotIntervalo,
-    }));
-}
-
-// ============================================================
-// FASE C: OPPORTUNITY WEIGHTING
-// ============================================================
-
-/**
- * buildWeightedFlowVector — Fase C
- *
- * Dado hourlyFlow e weightVector (opportunity weight por hora),
- * retorna flowSlots ponderado pela oportunidade.
- *
- * weightVector[h] = 1.0 (baseline) ou >1.0 para horas de alta oportunidade.
- * Horas com weight > 1 put more "importance" on coverage.
- */
-function buildWeightedFlowVector(hourlyFlowData, weightVector) {
-    const v = new Array(TOTAL_SLOTS).fill(0);
-    if (!hourlyFlowData) return v;
-
-    const baseFlow = buildHourlyFlow(hourlyFlowData);
-    const wv = weightVector || {};
-
-    for (let h = 0; h < 24; h++) {
-        const weight = wv[h] ?? 1.0;
-        for (let s = 0; s < SLOTS_PER_HOUR; s++) {
-            const slot = h * SLOTS_PER_HOUR + s;
-            v[slot] = baseFlow[slot] * weight;
-        }
-    }
-    return v;
+    return state;
 }
 
 // ============================================================
 // INTERFACE PÚBLICA (mantém compatibilidade V4)
 // ============================================================
 
+/**
+ * optimizeScheduleRows — Orquestra as 3 fases na nova ordem:
+ *
+ * 1. Classificar staff (opener/closer/flex)
+ * 2. Fase C: Ponderar flow por conversão
+ * 3. Fase B: Coordinate Descent nos intervalos (TODOS os staff ativos)
+ * 4. Fase A: Shift suggestion (somente FLEX)
+ * 5. Fase B.2: Segundo pass de intervalos (refinamento)
+ */
 export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, configInput = {}) {
-    // Phase A: shift suggestion
-    const shiftedRows = suggestShifts(staffRows, thermalRowsByHour, configInput);
-
-    const dayStaff = shiftedRows.filter(r =>
+    // Filtrar staff do dia
+    const dayStaff = staffRows.filter(r =>
         r.dia === selectedDay &&
         r.entrada && r.entrada.toUpperCase() !== 'FOLGA' &&
         r.saida
     );
 
-    if (dayStaff.length === 0) return shiftedRows;
+    if (dayStaff.length === 0) return staffRows;
 
+    const storeHours = getStoreHours(thermalRowsByHour);
     const profile = detectProfile(dayStaff.length);
     const v5Config = V5_CONFIG[profile];
 
+    // Fase C: Flow ponderado por conversão
     const flowVector = buildHourlyFlow(thermalRowsByHour);
+    const weightedFlow = buildWeightedFlowVector(thermalRowsByHour);
 
-    const optimizableStaff = dayStaff.map(s => ({
+    // Preparar state para Coordinate Descent
+    const optimizable = dayStaff.map(s => ({
         ...s,
+        originalId: s.id,
         slotEntrada: toSlot(s.entrada),
         slotSaida: toSlot(s.saida),
         slotIntervalo: s.intervalo ? toSlot(s.intervalo) : null,
     }));
 
-    const finalState = coordinateDescentV5(optimizableStaff, flowVector, null, v5Config);
+    // ── GUARDRAIL: Subcobertura severa — não rodar B.1 ──
+    // Quando a loja é severamente subcoberta (mu > 100 ou gap de cobertura > 15%
+    // do flow total), o score é inflacionado porque horas sem staff são excluídas.
+    // B.1 assume que redistribuir intervalos melhora o balanceamento, mas com
+    // staff insuficiente redistribuir intervalos piores (worsens pressure imbalance).
+    // Nestes casos, mantemos os intervalos originais.
+    const hourCov = buildHourlyCoverage(optimizable);
+    const hourlyFlowForGuard = buildHourlyFlowArray(flowVector);
+    const totalFlowGuard = hourlyFlowForGuard.reduce((s, f) => s + f, 0);
+    const gapFlow = hourlyFlowForGuard.reduce((s, f, h) =>
+        totalFlowGuard > 0 && hourCov[h] === 0 ? s + f : s, 0);
+    const gapPct = totalFlowGuard > 0 ? gapFlow / totalFlowGuard * 100 : 0;
+    const totalCov = hourCov.reduce((s, c) => s + c, 0);
+    const muGuard = totalCov > 0 ? totalFlowGuard / totalCov : 0;
+    // Baseline score guardrail: se a loja já está razoavelmente balanceada
+    // (score ≥ 55), redistribuir intervalos tende a piorar em vez de melhorar.
+    // As 6 regressões tinham baseline 50-61 — evitar rodar B.1 nestes casos.
+    const hourlyFlowBaseline = buildHourlyFlowArray(flowVector);
+    const totalFlowBaseline = hourlyFlowBaseline.reduce((s, f) => s + f, 0);
+    const totalCovBaseline = hourCov.reduce((s, c) => s + c, 0);
+    const muBaseline = totalCovBaseline > 0 ? totalFlowBaseline / totalCovBaseline : 0;
+    let weightedDevBaseline = 0;
+    hourlyFlowBaseline.forEach((f, h) => {
+        if (f > 0 && hourCov[h] > 0) {
+            const ti = f / hourCov[h] / muBaseline;
+            weightedDevBaseline += Math.abs(ti - 1) * f;
+        }
+    });
+    const lossBaseline = totalFlowBaseline > 0 ? weightedDevBaseline / totalFlowBaseline : 0;
+    const baselineScore = Math.max(0, Math.round(100 * (1 - lossBaseline)));
+    const skipByScore = baselineScore >= 55;
+    const skipB1 = gapPct > 15 || muGuard > 40 || skipByScore;
 
-    const resultRows = shiftedRows.map(row => {
-        const opt = finalState.find(o => o.originalId === row.id);
-        if (opt) {
+    // ── Fase B (pass 1): Otimizar intervalos de TODOS ──
+    const afterBreaks = skipB1 ? optimizable :
+        coordinateDescentV5(optimizable, flowVector, weightedFlow, v5Config);
+
+    // Aplicar resultado dos intervalos de volta
+    const rowsAfterB1 = staffRows.map(row => {
+        const opt = afterBreaks.find(o => o.originalId === row.id);
+        if (opt && opt.slotIntervalo !== null) {
             return { ...row, intervalo: fromSlot(opt.slotIntervalo) };
         }
         return row;
     });
 
-    return resultRows;
+    // ── Fase A: Shift de turnos (somente FLEX, somente dia selecionado) ──
+    const dayRowsB1 = rowsAfterB1.filter(r => r.dia === selectedDay);
+    const otherRows = rowsAfterB1.filter(r => r.dia !== selectedDay);
+    const shiftedDay = suggestShifts(dayRowsB1, thermalRowsByHour, {
+        maxShiftHours: configInput.maxShiftHours ?? 1,
+    });
+    const rowsAfterA = [...otherRows, ...shiftedDay];
+
+    // ── Fase B.2: Refinamento de intervalos pós-shift ──
+    const dayStaff2 = rowsAfterA.filter(r =>
+        r.dia === selectedDay &&
+        r.entrada && r.entrada.toUpperCase() !== 'FOLGA' &&
+        r.saida
+    );
+
+    if (dayStaff2.length === 0) return rowsAfterA;
+
+    const optimizable2 = dayStaff2.map(s => ({
+        ...s,
+        originalId: s.id,
+        slotEntrada: toSlot(s.entrada),
+        slotSaida: toSlot(s.saida),
+        slotIntervalo: s.intervalo ? toSlot(s.intervalo) : null,
+    }));
+
+    // GUARDRAIL B.2: mesmo critério de subcobertura — se a loja é severamente
+    // subcoberta (gap > 15% ou mu > 100), pular refinamento. A Fase B.2
+    // assume que redistribuir intervalos melhora o balanceamento, mas com
+    // staff insuficiente redistribuir intervalos piora o desvio (pressure spikes).
+    const hourCovB2 = buildHourlyCoverage(optimizable2);
+    const hourlyFlowB2 = buildHourlyFlowArray(flowVector);
+    const totalFlowB2 = hourlyFlowB2.reduce((s, f) => s + f, 0);
+    const gapFlowB2 = hourlyFlowB2.reduce((s, f, h) =>
+        totalFlowB2 > 0 && hourCovB2[h] === 0 ? s + f : s, 0);
+    const gapPctB2 = totalFlowB2 > 0 ? gapFlowB2 / totalFlowB2 * 100 : 0;
+    const totalCovB2 = hourCovB2.reduce((s, c) => s + c, 0);
+    const muB2 = totalCovB2 > 0 ? totalFlowB2 / totalCovB2 : 0;
+    // Baseline score guardrail para B.2: evitar refinamento em lojas já balanceadas
+    let weightedDevBaselineB2 = 0;
+    hourlyFlowB2.forEach((f, h) => {
+        if (f > 0 && hourCovB2[h] > 0) {
+            const ti = f / hourCovB2[h] / muB2;
+            weightedDevBaselineB2 += Math.abs(ti - 1) * f;
+        }
+    });
+    const lossBaselineB2 = totalFlowB2 > 0 ? weightedDevBaselineB2 / totalFlowB2 : 0;
+    const baselineScoreB2 = Math.max(0, Math.round(100 * (1 - lossBaselineB2)));
+    const skipByScoreB2 = baselineScoreB2 >= 55;
+    const skipB2 = gapPctB2 > 15 || muB2 > 40 || skipByScoreB2;
+
+    const refinedConfig = { ...v5Config, maxRounds: Math.ceil(v5Config.maxRounds / 2) };
+    const afterBreaks2 = skipB2 ? optimizable2 :
+        coordinateDescentV5(optimizable2, flowVector, weightedFlow, refinedConfig);
+
+    // Resultado final
+    const result = rowsAfterA.map(row => {
+        const opt = afterBreaks2.find(o => o.originalId === row.id);
+        if (opt && opt.slotIntervalo !== null) {
+            return { ...row, intervalo: fromSlot(opt.slotIntervalo) };
+        }
+        return row;
+    });
+
+    // Limpar campo 'role' temporário
+    return result.map(({ role, ...rest }) => rest);
 }
 
 export function optimizeAllDays(staffRows, flowMap, config = {}) {
@@ -458,6 +682,10 @@ export function optimizeAllDays(staffRows, flowMap, config = {}) {
     });
     return currentRows;
 }
+
+// ============================================================
+// THERMAL METRICS (inalterado)
+// ============================================================
 
 export function computeThermalMetrics(hourlyData) {
     if (!hourlyData || hourlyData.length === 0) {
@@ -538,7 +766,6 @@ export function computeThermalMetrics(hourlyData) {
     // Oportunidade
     const CRITICAL_PRESSURE = 1.3 * mu;
     let lostOpportunity = 0;
-
     rowsByHour.forEach(r => {
         if (r.pressure > CRITICAL_PRESSURE && r.activeStaff > 0) {
             const servingCapacity = r.activeStaff * CRITICAL_PRESSURE;

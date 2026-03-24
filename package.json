@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/__tests__/parsers.test.js src/__tests__/staffUtils.test.js",
+    "test": "node --test src/__tests__/parsers.test.js src/__tests__/staffUtils.test.js src/__tests__/thermalBalance_v5.test.js src/__tests__/staffPerformance.test.js src/__tests__/visionParser.test.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -47,7 +47,7 @@ Retorna prompt com instruções:
 - Extrair uma entrada por combinação funcionário × dia
 - Mapear variações de nome de dia para: `SEGUNDA`, `TERCA`, `QUARTA`, `QUINTA`, `SEXTA`, `SABADO`, `DOMINGO`
 - Ignorar dias marcados como FOLGA ou sem horário
-- Não confundir horário de almoço/intervalo com saída
+- Não confundir horário de almoço/intervalo com saída — horário de intervalo vai no campo `intervalo`
 - Funcionar para qualquer layout visual (tabela, lista, foto de quadro, planilha impressa)
 - Responder APENAS com JSON válido, sem markdown
 
@@ -63,28 +63,37 @@ Formato de saída esperado da API:
 
 ### `parseVisionResponse(text)`
 
+Responsável pela normalização completa. O componente `UnifiedEscalaUploader` não normaliza — apenas repassa o resultado.
+
 1. Remove bloco markdown se presente
 2. Faz `JSON.parse`; fallback com busca de `{...}`
 3. Valida presença de `linhas` (array)
-4. Para cada linha:
-   - Gera `id: img_${Date.now()}_${index}`
-   - Garante `intervalo` como string (null → `""`)
-   - Detecta `saidaDiaSeguinte` (saída < entrada em horas)
-5. Retorna `{ linhas: [...] }`
+4. Para cada linha, retorna objeto normalizado:
+   - `id: img_${Date.now()}_${index}` — prefixo `img_` diferencia de linhas Excel (`upload-`), evitando colisões práticas; `crypto.randomUUID()` é alternativa mais robusta mas `Date.now()_index` é suficiente para o uso atual
+   - `dia`: string uppercase da linha
+   - `nome`: string da linha
+   - `entrada`: string ou `""`
+   - `saida`: string ou `""`
+   - `intervalo`: string ou `""` (null → `""`)
+   - `saidaDiaSeguinte`: detectado comparando hora de entrada e saída (saída < entrada → true)
+5. Retorna `{ linhas: [...] }` onde cada linha já está no formato interno completo
 
 ### `processScheduleImage(imageFile, apiKey)`
 
-Sem mudanças estruturais — mantém chamada à API Anthropic com modelo `claude-3-5-sonnet-20241022`, apenas usa o prompt corrigido.
+Mantém chamada à API Anthropic com modelo `claude-3-5-sonnet-20241022`.
+**Alteração:** `max_tokens` aumentado de `1024` para `4096` para suportar escalas com muitos funcionários (15+ funcionários × 7 dias facilmente excede 1024 tokens).
+**Retorno:** `{ linhas: [...] }` — chave `linhas` (não `funcionarios` como no código atual), onde cada elemento já está normalizado no formato interno completo. O componente acessa `result.linhas` diretamente.
 
 ## 2. `UnifiedEscalaUploader.jsx` — Componente novo
 
 ### Props
 ```ts
 {
-  processFile: (file, type) => Promise<void>,  // do useFileProcessing, para Excel
-  onEscalaProcessed: (rows) => void,           // callback final
+  processFile: (file, type) => Promise<void>,          // do useFileProcessing, para Excel
+  onEscalaProcessed: (rows, selectedDay?) => void,     // callback final
+  selectedDay: string,                                  // dia selecionado, repassado no caminho imagem
   dragActive: boolean,
-  setDragActive: (fn) => void,
+  setDragActive: (updater: (prev: object) => object) => void,  // setState do hook; chamar como setDragActive(prev => ({ ...prev, escala: true/false })) para não destruir estados dos outros boxes
   error: string | null
 }
 ```
@@ -106,36 +115,25 @@ Sem mudanças estruturais — mantém chamada à API Anthropic com modelo `claud
 ```
 file → processFile(file, 'escala')
 ```
-Usa o pipeline existente do `useFileProcessing` sem modificação.
+`processFile` já chama `onEscalaProcessed(rows, selectedDay)` internamente via o hook.
+O componente **não** chama `onEscalaProcessed` diretamente neste caminho — apenas gerencia estado de loading/success/error local.
 
 **Caminho Imagem:**
-```
+
+```text
 file → processScheduleImage(file, apiKey)
-     → parseVisionResponse()
-     → onEscalaProcessed(linhas normalizadas)
+     → result.linhas  (já normalizadas por parseVisionResponse)
+     → onEscalaProcessed(result.linhas, selectedDay)
 ```
 
 **UI:**
+
 - Área de drop com ícone `Upload` (padrão) ou `Camera` (quando imagem detectada)
 - Badge dinâmico: "XLSX" (vermelho) ou "IMG" (azul) após seleção
 - Link "Configurar chave API" que expande campo `type="password"`
 - Estados visuais: spinner em loading, check verde em success, alerta vermelho em error
 - Texto de erro abaixo da área
 - Aceita: `accept=".xlsx,.xls,image/*"`
-
-### Normalização de linhas (caminho imagem)
-
-```js
-linhas.map((l, i) => ({
-  id: `img_${Date.now()}_${i}`,
-  dia: l.dia,
-  nome: l.nome,
-  entrada: l.entrada || '',
-  saida: l.saida || '',
-  intervalo: l.intervalo || '',
-  saidaDiaSeguinte: detectSaidaDiaSeguinte(l.entrada, l.saida),
-}))
-```
 
 ## 3. `UploadSection.jsx` — Atualização
 
@@ -145,9 +143,21 @@ Remove:
 
 Adiciona:
 - `import UnifiedEscalaUploader`
-- `<UnifiedEscalaUploader processFile={processFile} onEscalaProcessed={onEscalaProcessed} dragActive={dragActive.escala} setDragActive={setDragActive} error={error.escala} />`
+- Passa `selectedDay` como prop (precisa ser adicionado à assinatura de `UploadSection`)
 
-`processFile` precisa ser exposto pelo `useFileProcessing` (já está no retorno atual).
+```jsx
+<UnifiedEscalaUploader
+  processFile={processFile}
+  onEscalaProcessed={onEscalaProcessed}
+  selectedDay={selectedDay}
+  dragActive={dragActive.escala}
+  setDragActive={setDragActive}
+  error={error.escala}
+/>
+```
+
+`processFile` já está exposto no retorno de `useFileProcessing`.
+`selectedDay` é novo na interface de `UploadSection` — precisa ser passado pelo componente pai (Dashboard).
 
 ## 4. `ImageUploader.jsx` — Deletado
 
@@ -164,6 +174,7 @@ Componente substituído integralmente por `UnifiedEscalaUploader.jsx`.
 
 1. Upload de `.xlsx` funciona exatamente como antes
 2. Upload de imagem extrai todas as combinações funcionário × dia da semana
-3. Ambos os caminhos produzem linhas no formato interno esperado
+3. Ambos os caminhos produzem linhas no formato interno esperado e chamam `onEscalaProcessed(rows, selectedDay)`
 4. Campo de API key persiste via localStorage
 5. `ImageUploader.jsx` removido sem referências órfãs
+6. `max_tokens` em `processScheduleImage` é `4096`

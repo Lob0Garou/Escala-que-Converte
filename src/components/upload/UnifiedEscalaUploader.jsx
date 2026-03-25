@@ -17,8 +17,8 @@ const UnifiedEscalaUploader = ({
 }) => {
   const [status, setStatus] = useState('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  const envKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('openrouter_api_key') || envKey);
+  const envKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || '';
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('google_ai_api_key') || envKey);
   const [showApiKey, setShowApiKey] = useState(false);
   const [fileType, setFileType] = useState(null); // 'excel' | 'image' | null
   const fileInputRef = useRef(null);
@@ -50,9 +50,9 @@ const UnifiedEscalaUploader = ({
         await processFile(file, 'escala');
         setStatus('success');
       } else {
-        const key = localStorage.getItem('openrouter_api_key') || apiKey || envKey;
+        const key = localStorage.getItem('google_ai_api_key') || apiKey || envKey;
         if (!key) {
-          throw new Error('API Key do OpenRouter não encontrada. Configure no campo abaixo.');
+          throw new Error('API Key do Google AI não encontrada. Configure no campo abaixo.');
         }
         const { processScheduleImage } = await import('../../lib/visionParser');
         const result = await processScheduleImage(file, key);
@@ -68,7 +68,7 @@ const UnifiedEscalaUploader = ({
 
   const handleApiKeySave = (value) => {
     setApiKey(value);
-    localStorage.setItem('openrouter_api_key', value);
+    localStorage.setItem('google_ai_api_key', value);
   };
 
   const isLoading = status === 'loading';

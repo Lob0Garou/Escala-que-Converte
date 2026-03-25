@@ -17,7 +17,8 @@ const UnifiedEscalaUploader = ({
 }) => {
   const [status, setStatus] = useState('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('openrouter_api_key') || '');
+  const envKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('openrouter_api_key') || envKey);
   const [showApiKey, setShowApiKey] = useState(false);
   const [fileType, setFileType] = useState(null); // 'excel' | 'image' | null
   const fileInputRef = useRef(null);
@@ -49,7 +50,7 @@ const UnifiedEscalaUploader = ({
         await processFile(file, 'escala');
         setStatus('success');
       } else {
-        const key = localStorage.getItem('openrouter_api_key') || apiKey;
+        const key = localStorage.getItem('openrouter_api_key') || apiKey || envKey;
         if (!key) {
           throw new Error('API Key do OpenRouter não encontrada. Configure no campo abaixo.');
         }
@@ -135,22 +136,26 @@ const UnifiedEscalaUploader = ({
           className="hidden"
         />
 
-        {/* API Key (colapsada por padrão, só relevante para imagens) */}
-        <button
-          type="button"
-          onClick={() => setShowApiKey((v) => !v)}
-          className="text-[10px] text-text-muted hover:text-text-primary text-left transition-colors"
-        >
-          {showApiKey ? '▲ Ocultar chave API' : '▼ Configurar chave API'}
-        </button>
-        {showApiKey && (
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => handleApiKeySave(e.target.value)}
-            placeholder="API Key OpenRouter"
-            className="w-full px-3 py-1.5 text-xs bg-bg-surface border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-main"
-          />
+        {/* API Key — oculta quando já pré-configurada via env var */}
+        {!envKey && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowApiKey((v) => !v)}
+              className="text-[10px] text-text-muted hover:text-text-primary text-left transition-colors"
+            >
+              {showApiKey ? '▲ Ocultar chave API' : '▼ Configurar chave API'}
+            </button>
+            {showApiKey && (
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => handleApiKeySave(e.target.value)}
+                placeholder="API Key OpenRouter"
+                className="w-full px-3 py-1.5 text-xs bg-bg-surface border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-main"
+              />
+            )}
+          </>
         )}
 
         {/* Erro */}

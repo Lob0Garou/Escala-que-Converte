@@ -1,6 +1,6 @@
 /**
  * visionParser.js
- * Parser de imagem de escala via Claude Vision API.
+ * Parser de imagem de escala via OpenRouter (google/gemini-1.5-flash).
  * Retorna { linhas: [...] } onde cada linha é { id, dia, nome, entrada, saida, intervalo, saidaDiaSeguinte }
  */
 
@@ -95,39 +95,34 @@ export function parseVisionResponse(text) {
 }
 
 /**
- * Processa imagem de escala via Claude Vision API.
+ * Processa imagem de escala via OpenRouter (google/gemini-1.5-flash).
  * @param {File} imageFile
- * @param {string} apiKey
+ * @param {string} apiKey - Chave OpenRouter
  * @returns {Promise<{ linhas: Array }>}
  */
 export async function processScheduleImage(imageFile, apiKey) {
-  const base64 = await fileToBase64(imageFile);
+  const dataUrl = await fileToDataUrl(imageFile);
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 4096,
+      model: 'google/gemini-1.5-flash',
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'user',
           content: [
             {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: imageFile.type,
-                data: base64,
-              },
-            },
-            {
               type: 'text',
               text: buildVisionPrompt(),
+            },
+            {
+              type: 'image_url',
+              image_url: { url: dataUrl },
             },
           ],
         },
@@ -141,20 +136,20 @@ export async function processScheduleImage(imageFile, apiKey) {
   }
 
   const result = await response.json();
-  const text = result.content?.[0]?.text || '';
+  const text = result.choices?.[0]?.message?.content || '';
 
   return parseVisionResponse(text);
 }
 
 /**
- * Converte File para base64.
+ * Converte File para data URL completa (inclui prefixo data:image/...;base64,...).
  * @param {File} file
  * @returns {Promise<string>}
  */
-function fileToBase64(file) {
+function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });

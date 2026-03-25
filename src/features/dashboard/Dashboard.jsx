@@ -92,14 +92,15 @@ const Dashboard = () => {
     salesData,
     loading,
     error,
+    processFile,
     handleFileUpload,
     handleDrag,
     handleDrop,
   } = useFileProcessing(selectedDay, handleEscalaProcessed);
 
   useEffect(() => {
-    setTheme('dark');
-    document.documentElement.classList.add('dark');
+    setTheme('light');
+    document.documentElement.classList.remove('dark');
   }, []);
 
   const diasSemana = useMemo(() => ({
@@ -151,14 +152,14 @@ const Dashboard = () => {
   }, [pickerState, updateStaffRow]);
 
   return (
-    <div className="min-h-screen w-full bg-[#0B0F1A] flex flex-col">
+    <div className="min-h-screen w-full bg-accent-light/10 flex flex-col">
       <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
         <img
           src={CENTAURO_BRAND.bgLogo}
           alt=""
-          className={`w-[85%] h-[85%] object-contain grayscale brightness-150 contrast-125 select-none transition-opacity duration-700 ease-in-out ${cuponsData.length > 0 ? 'opacity-0' : 'opacity-[0.04]'}`}
+          className={`w-[85%] h-[85%] object-contain select-none transition-opacity duration-700 ease-in-out opacity-[0.03] grayscale opacity-5`}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.02]" />
+        <div className="absolute inset-0 bg-[radial-gradient(#000000_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.03]" />
       </div>
 
       <style jsx global>{`
@@ -186,6 +187,8 @@ const Dashboard = () => {
               salesData={salesData}
               error={error}
               onEscalaProcessed={handleEscalaProcessed}
+              processFile={processFile}
+              selectedDay={selectedDay}
             />
           </div>
         ) : (
@@ -236,6 +239,8 @@ const Dashboard = () => {
                 salesData={salesData}
                 error={error}
                 onEscalaProcessed={handleEscalaProcessed}
+                processFile={processFile}
+                selectedDay={selectedDay}
               />
             </div>
           </div>

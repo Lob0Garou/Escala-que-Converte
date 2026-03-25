@@ -88,7 +88,7 @@ const UnifiedEscalaUploader = ({
             <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 border border-blue-400/20 px-2 py-0.5 rounded-full uppercase tracking-wider">IMG</span>
           )}
           {!fileType && (
-            <span className="text-[10px] font-bold text-[#E30613] bg-[#E30613]/10 border border-[#E30613]/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Atual</span>
+            <span className="text-[10px] font-bold text-gray-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Atual</span>
           )}
         </div>
       </div>
@@ -131,6 +131,7 @@ const UnifiedEscalaUploader = ({
           type="file"
           accept=".xlsx,.xls,image/*"
           onChange={(e) => handleFile(e.target.files?.[0])}
+          onClick={(e) => { e.target.value = ''; }}
           className="hidden"
         />
 
@@ -153,7 +154,7 @@ const UnifiedEscalaUploader = ({
         )}
 
         {/* Erro */}
-        {(status === 'error') && (errorMessage || error) && (
+        {(status === 'error' || error) && (errorMessage || error) && (
           <p className="text-[10px] text-red-400 text-center">
             {errorMessage || error}
           </p>

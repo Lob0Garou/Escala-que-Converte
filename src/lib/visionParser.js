@@ -1,83 +1,76 @@
 /**
  * visionParser.js
- * Parser de imagem de escala via Claude Vision API
+ * Parser de imagem de escala via Claude Vision API.
+ * Retorna { linhas: [...] } onde cada linha é { id, dia, nome, entrada, saida, intervalo, saidaDiaSeguinte }
  */
 
 /**
- * Constrói o prompt de visão para extração de escala.
- * @returns {string} Prompt formatado com tags XML
+ * Constrói o prompt de visão para extração de escala semanal.
+ * @returns {string}
  */
 export function buildVisionPrompt() {
-  return `Analise a imagem de escala de trabalho e extraia as informações.
+  return `Você é um extrator de dados de escalas de trabalho. Analise a imagem e extraia os horários de todos os funcionários para cada dia da semana.
 
-<image>
-{{IMAGEM}}
-</image>
+REGRAS:
+- Extraia UMA entrada por combinação funcionário × dia
+- Mapeie qualquer variação de nome de dia para exatamente um destes valores: SEGUNDA, TERCA, QUARTA, QUINTA, SEXTA, SABADO, DOMINGO
+- Ignore dias marcados como FOLGA, OFF, DESCANSO ou sem horário preenchido
+- "Almoço", "Intervalo", "Int" e similares são o campo "intervalo", NÃO são a hora de saída
+- A hora de saída é quando o funcionário encerra o turno
+- Funcione para qualquer layout: tabela com dias nas colunas, lista por funcionário, foto de quadro, planilha impressa
+- Se um campo não estiver visível, use null
 
-REGRAS_PARA_EXTRAO:
-- Identifique cada funcionário pelo nome
-- Para cada funcionário, extraia: nome, entrada e saída
-- Lembre-se: "almoco" ou similar não é hora de saida, é apenas indicao de intervalo
--まま
-
-FORMATO_SAIDA:
-Responda APENAS com um objeto JSON, sem markdown ou texto adicional:
+FORMATO DE SAÍDA — responda APENAS com JSON válido, sem markdown, sem texto adicional:
 {
-  "funcionarios": [
-    {
-      "nome": "Nome do Funcionário",
-      "entrada": "HH:MM",
-      "saida": "HH:MM"
-    }
+  "linhas": [
+    { "nome": "Nome Completo", "dia": "SEGUNDA", "entrada": "09:00", "saida": "18:00", "intervalo": "12:00" },
+    { "nome": "Nome Completo", "dia": "TERCA",   "entrada": "09:00", "saida": "18:00", "intervalo": null   }
   ]
 }`;
 }
 
 /**
- * Extrai e normaliza o JSON da resposta da API de visão.
+ * Normaliza a resposta da API para o formato interno da ferramenta.
  * @param {string} text - Texto bruto da resposta
- * @returns {object} Objeto com array de funcionários
+ * @returns {{ linhas: Array<{id, dia, nome, entrada, saida, intervalo, saidaDiaSeguinte}> }}
  */
 export function parseVisionResponse(text) {
   let jsonStr = text.trim();
 
-  // Remove bloco de código markdown
+  // Remove bloco de código markdown se presente
   const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) {
     jsonStr = codeBlockMatch[1].trim();
   }
 
-  // Tenta parsear diretamente (caso mais comum)
   let data;
   try {
     data = JSON.parse(jsonStr);
   } catch {
-    // Fallback: extrai JSON usando busca progressiva
+    // Fallback: busca progressiva pelo primeiro objeto JSON
     const firstBrace = jsonStr.indexOf('{');
     const lastBrace = jsonStr.lastIndexOf('}');
-
     if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
       throw new Error('JSON inválido: nenhum objeto encontrado');
     }
-
-    const candidate = jsonStr.slice(firstBrace, lastBrace + 1);
     try {
-      data = JSON.parse(candidate);
+      data = JSON.parse(jsonStr.slice(firstBrace, lastBrace + 1));
     } catch {
       throw new Error('JSON inválido: falha no parsing');
     }
   }
 
-  // Normaliza campos
-  if (!data.funcionarios || !Array.isArray(data.funcionarios)) {
-    data.funcionarios = [];
+  // Garante que linhas é um array
+  if (!data.linhas || !Array.isArray(data.linhas)) {
+    data.linhas = [];
   }
 
-  data.funcionarios = data.funcionarios.map((func, index) => {
-    const entrada = func.entrada;
-    const saida = func.saida;
+  const now = Date.now();
+  data.linhas = data.linhas.map((linha, index) => {
+    const entrada = linha.entrada || '';
+    const saida = linha.saida || '';
+    const intervalo = linha.intervalo || '';
 
-    // Detecta saída no dia seguinte (ex: entrada 22:00, saída 06:00)
     let saidaDiaSeguinte = false;
     if (entrada && saida) {
       const [hEnt] = entrada.split(':').map(Number);
@@ -88,10 +81,12 @@ export function parseVisionResponse(text) {
     }
 
     return {
-      ...(entrada !== undefined && { entrada }),
-      ...(saida !== undefined && { saida }),
-      id: func.id || `func_${Date.now()}_${index}`,
-      nome: func.nome || '',
+      id: `img_${now}_${index}`,
+      dia: linha.dia || '',
+      nome: linha.nome || '',
+      entrada,
+      saida,
+      intervalo,
       saidaDiaSeguinte,
     };
   });
@@ -101,13 +96,11 @@ export function parseVisionResponse(text) {
 
 /**
  * Processa imagem de escala via Claude Vision API.
- * @param {File} imageFile - Arquivo de imagem
- * @param {string} apiKey - Chave da API Anthropic
- * @returns {Promise<object>} Dados extraídos
+ * @param {File} imageFile
+ * @param {string} apiKey
+ * @returns {Promise<{ linhas: Array }>}
  */
 export async function processScheduleImage(imageFile, apiKey) {
-  const prompt = buildVisionPrompt();
-
   const base64 = await fileToBase64(imageFile);
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -119,7 +112,7 @@ export async function processScheduleImage(imageFile, apiKey) {
     },
     body: JSON.stringify({
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
+      max_tokens: 4096,
       messages: [
         {
           role: 'user',
@@ -134,7 +127,7 @@ export async function processScheduleImage(imageFile, apiKey) {
             },
             {
               type: 'text',
-              text: prompt,
+              text: buildVisionPrompt(),
             },
           ],
         },

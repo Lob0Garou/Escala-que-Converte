@@ -221,7 +221,9 @@ const Dashboard = ({
 
     clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      saveShiftsBatch(activeWeekId, activeStore.id, staffRows);
+      saveShiftsBatch(activeWeekId, activeStore.id, staffRows).catch((err) =>
+        console.error('[dashboard] auto-save staffRows falhou:', err)
+      );
     }, 1500);
 
     return () => clearTimeout(autoSaveTimerRef.current);

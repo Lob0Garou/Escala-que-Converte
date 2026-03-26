@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap } from 'lucide-react';
+import { Zap, Save } from 'lucide-react';
 import {
   Area,
   Bar,
@@ -16,73 +16,120 @@ import {
 } from 'recharts';
 import CorporateTooltip from './CorporateTooltip';
 
-export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, onToggleOptimized }) => {
+export const ChartPanel = ({
+  chartData,
+  dailyMetrics,
+  isOptimized,
+  onOptimize,
+  onToggleOptimized,
+  onValidate,
+  isValidating,
+  theme,
+  validatedAt,
+}) => {
+  const isDark = theme ? theme === 'dark' : typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const gridColor = isDark ? '#3F3F46' : '#E4E4E7';
+  const tickColor = isDark ? '#A1A1AA' : '#71717A';
+  const cursorColor = isDark ? 'rgba(255,255,255,0.04)' : '#F4F4F5';
+  const legendColor = isDark ? '#A1A1AA' : '#52525B';
+  const gapFill = isDark ? 'rgba(239,68,68,0.12)' : '#FEE2E2';
+  const dotStroke = isDark ? '#18181B' : '#FFFFFF';
+
   return (
-    <div className="w-full bg-[#1a1e27] border border-white/5 rounded-2xl shadow-xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide border-l-4 border-[#E30613] pl-3">
-          Relatório de Capacidade vs. Demanda
-        </h3>
-        <button
-          onClick={() => {
-            if (!isOptimized) {
-              onOptimize();
-            } else {
-              onToggleOptimized();
-            }
-          }}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs font-bold uppercase tracking-wide ${isOptimized
-            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-            : 'bg-white/5 border border-white/10 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+    <section className="panel-surface-strong w-full p-5 transition-all duration-200 sm:p-6 lg:p-7">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="space-y-2">
+          <span className="inline-flex items-center rounded-full border border-border/70 bg-bg-elevated/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+            Cockpit de cobertura
+          </span>
+          <h3 className="text-lg font-semibold tracking-tight text-text-primary sm:text-xl">
+            Capacidade x Demanda por hora
+          </h3>
+          <p className="text-sm text-text-secondary">
+            Priorize janelas com desencaixe entre fluxo e equipe para reduzir perda operacional.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => {
+              if (!isOptimized) {
+                onOptimize();
+              } else {
+                onToggleOptimized();
+              }
+            }}
+            className={`inline-flex h-10 items-center gap-2 rounded-2xl border px-4 text-xs font-semibold uppercase tracking-[0.12em] shadow-sm transition-all ${
+              isOptimized
+                ? 'border-accent-main bg-accent-main text-white hover:bg-accent-main/90'
+                : 'border-border/70 bg-bg-surface text-text-secondary hover:bg-bg-elevated hover:text-text-primary'
             }`}
-        >
-          <Zap className="w-3.5 h-3.5" />
-          {isOptimized ? 'Escala Otimizada' : 'Escala Original'}
-        </button>
+          >
+            <Zap className="h-3.5 w-3.5" />
+            {isOptimized ? 'Escala Otimizada' : 'Escala Original'}
+          </button>
+
+          {onValidate && (
+            <button
+              onClick={onValidate}
+              disabled={isValidating}
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-green-700/80 bg-green-600 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Save className={`h-3.5 w-3.5 ${isValidating ? 'animate-pulse' : ''}`} />
+              {isValidating ? 'Validando...' : 'Validar Escala'}
+            </button>
+          )}
+          {validatedAt && (
+            <span className="text-xs text-text-secondary whitespace-nowrap">
+              Validado {new Date(validatedAt).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 w-full min-h-0 h-[280px] md:h-[400px]">
+      <div className="h-[340px] w-full min-h-0 sm:h-[430px] xl:h-[500px] 2xl:h-[560px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
             <defs>
               <linearGradient id="fluxGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="capacityGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#e2e8f0" />
-                <stop offset="50%" stopColor="#f8fafc" />
-                <stop offset="100%" stopColor="#e2e8f0" />
-              </linearGradient>
-              <linearGradient id="conversionGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34d399" />
-                <stop offset="100%" stopColor="#059669" />
+                <stop offset="5%" stopColor="#94A3B8" stopOpacity={isDark ? 0.25 : 0.15} />
+                <stop offset="95%" stopColor="#94A3B8" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="hora"
-              tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              tick={{ fill: tickColor, fontSize: 11, fontWeight: 500 }}
+              axisLine={{ stroke: gridColor }}
               dy={10}
               tickFormatter={(value) => `${value}h`}
             />
             <YAxis
               yAxisId="left"
-              tick={{ fill: '#64748b', fontSize: 11 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              tick={{ fill: tickColor, fontSize: 11 }}
+              axisLine={{ stroke: gridColor }}
               tickFormatter={(value) => `${value}%`}
             />
             <YAxis
               yAxisId="right"
               orientation="right"
               unit="%"
-              tick={{ fill: '#64748b', fontSize: 11 }}
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              tick={{ fill: tickColor, fontSize: 11 }}
+              axisLine={{ stroke: gridColor }}
               domain={[0, (dataMax) => Math.ceil(dataMax * 1.3)]}
             />
-            <Tooltip content={<CorporateTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
+            <Tooltip content={<CorporateTooltip />} cursor={{ fill: cursorColor }} />
+            <Legend
+              verticalAlign="top"
+              height={36}
+              iconType="circle"
+              wrapperStyle={{ fontSize: '12px', color: legendColor, fontWeight: 500 }}
+            />
 
             {chartData.map((entry, index) => {
               if (entry.percentualFluxo > entry.funcionarios_visual) {
@@ -94,7 +141,7 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
                     x2={entry.hora}
                     y1={entry.funcionarios_visual}
                     y2={entry.percentualFluxo}
-                    fill="rgba(244,63,94,0.15)"
+                    fill={gapFill}
                     stroke="none"
                     ifOverflow="extendDomain"
                   />
@@ -109,9 +156,9 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
               dataKey="percentualFluxo"
               name="Fluxo Clientes"
               fill="url(#fluxGradient)"
-              stroke="#06b6d4"
-              strokeWidth={1}
-              strokeOpacity={0.4}
+              stroke="#94A3B8"
+              strokeWidth={2}
+              strokeOpacity={0.8}
               fillOpacity={1}
               activeDot={false}
             />
@@ -119,19 +166,18 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
             <Bar
               yAxisId="right"
               dataKey="conversao"
-              name="Conversão %"
+              name="Conversao %"
               barSize={24}
-              fill="url(#conversionGradient)"
-              fillOpacity={0.8}
+              fill="#16A34A"
+              fillOpacity={isDark ? 0.9 : 0.8}
               radius={[4, 4, 0, 0]}
-              style={{ filter: 'drop-shadow(0 4px 6px rgba(16,185,129,0.1))' }}
             >
               <LabelList
                 dataKey="conversao"
                 position="top"
-                fill="#34d399"
+                fill={isDark ? '#4ADE80' : '#15803D'}
                 fontSize={10}
-                fontWeight="bold"
+                fontWeight="semibold"
                 formatter={(value) => `${value.toFixed(1)}%`}
               />
             </Bar>
@@ -145,11 +191,11 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
                 const { cx, cy, payload } = props;
                 const isCritical = dailyMetrics?.horasCriticas?.includes(`${payload.hora}h`);
                 if (isCritical) {
-                  return <circle cx={cx} cy={cy} r={5} fill="#f43f5e" stroke="#1a1e27" strokeWidth={2} />;
+                  return <circle cx={cx} cy={cy} r={5} fill="#DC2626" stroke={dotStroke} strokeWidth={2} />;
                 }
                 return null;
               }}
-              activeDot={{ r: 6, fill: '#059669' }}
+              activeDot={{ r: 6, fill: '#16A34A' }}
               legendType="none"
               isAnimationActive={false}
             />
@@ -159,15 +205,15 @@ export const ChartPanel = ({ chartData, dailyMetrics, isOptimized, onOptimize, o
               type="monotone"
               dataKey="funcionarios_visual"
               name="Equipe (Capacidade)"
-              stroke="url(#capacityGradient)"
-              strokeWidth={4}
+              stroke="#7C3AED"
+              strokeWidth={3}
               dot={(props) => <circle cx={props.cx} cy={props.cy} r={0} />}
-              activeDot={{ r: 6, fill: '#f8fafc', stroke: '#0f172a', strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: dotStroke, stroke: '#7C3AED', strokeWidth: 2 }}
             />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </section>
   );
 };
 

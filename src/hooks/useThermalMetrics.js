@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { generateSuggestedCoverage } from '../lib/thermalBalance';
 
 export const useThermalMetrics = (chartData) => {
     const thermalMetrics = useMemo(() => {
@@ -42,26 +41,7 @@ export const useThermalMetrics = (chartData) => {
         return { mu, score, adherence, lostOpportunity, hotspots, coldspots };
     }, [chartData]);
 
-    const suggestedCoverage = useMemo(() => {
-        if (!chartData || chartData.length === 0) return null;
-
-        const rowsByHour = chartData.map((point) => ({
-            hour: parseInt(point.hora, 10),
-            flowQty: point.fluxo,
-            activeStaff: point.funcionarios_real,
-            thermalIndex: point.thermalIndex,
-            pressure: point.pressure,
-            badge: point.thermalBadge,
-        }));
-
-        return generateSuggestedCoverage(rowsByHour, {
-            minCoveragePerHour: 1,
-            maxIterations: 20,
-            targetMaxIndex: 1.15,
-        });
-    }, [chartData]);
-
-    return { thermalMetrics, suggestedCoverage };
+    return { thermalMetrics };
 };
 
 export default useThermalMetrics;

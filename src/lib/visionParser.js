@@ -5,11 +5,51 @@
  * Retorna { linhas: [...] } no formato interno da ferramenta.
  */
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
+// Resolução máxima antes de enviar para a API (reduz tokens visuais e custo)
+const MAX_IMAGE_PX = 1600;
+const JPEG_QUALITY = 0.88;
+
 /**
- * Prompt de extração com 8 regras — replicado do conversor HTML de referência.
+ * Redimensiona e comprime a imagem para reduzir tokens visuais.
+ * @param {File} file
+ * @returns {Promise<{ base64: string, mimeType: string }>}
+ */
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const { naturalWidth: w, naturalHeight: h } = img;
+      const scale = Math.min(1, MAX_IMAGE_PX / Math.max(w, h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve({
+            base64: reader.result.split(',')[1],
+            mimeType: 'image/jpeg',
+          });
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        },
+        'image/jpeg',
+        JPEG_QUALITY,
+      );
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/**
+ * Prompt de extração com 8 regras.
  * @returns {string}
  */
 export function buildVisionPrompt() {
@@ -17,7 +57,7 @@ export function buildVisionPrompt() {
 
 REGRAS DE EXTRAÇÃO:
 1. Identificar: dia da semana, nome do colaborador, horário de entrada, horário de intervalo, horário de saída, folgas.
-2. O campo DIA deve ficar em MAIÚSCULO: SEGUNDA, TERCA, QUARTA, QUINTA, SEXTA, SABADO, DOMINGO.
+2. O campo DIA deve ficar em MAIÚSCULO: SEGUNDA, TERÇA, QUARTA, QUINTA, SEXTA, SÁBADO, DOMINGO.
 3. O campo ATLETA deve conter apenas o nome do colaborador.
 4. Os horários devem estar no formato HH:MM (ex: 09:30, 14:20).
 5. Se for dia de folga: ENTRADA="FOLGA", INTER="", SAIDA="".
@@ -28,7 +68,6 @@ REGRAS DE EXTRAÇÃO:
 
 /**
  * Normaliza o array retornado pelo Gemini para o formato interno.
- * Input: JSON string de array [{DIA, ATLETA, ENTRADA, INTER, SAIDA}, ...]
  * @param {string} text
  * @returns {{ linhas: Array }}
  */
@@ -37,7 +76,6 @@ export function parseVisionResponse(text) {
   try {
     arr = JSON.parse(text.trim());
   } catch {
-    // Fallback: busca o array no texto
     const first = text.indexOf('[');
     const last = text.lastIndexOf(']');
     if (first === -1 || last === -1 || last <= first) {
@@ -54,7 +92,6 @@ export function parseVisionResponse(text) {
 
   const now = Date.now();
   const linhas = arr.map((item, index) => {
-    // FOLGA → campos de horário vazios
     const isFolga = (item.ENTRADA || '').toUpperCase() === 'FOLGA';
     const entrada = isFolga ? '' : (item.ENTRADA || '');
     const saida = isFolga ? '' : (item.SAIDA || '');
@@ -85,19 +122,19 @@ export function parseVisionResponse(text) {
 
 /**
  * Processa imagem de escala via Google AI Gemini 2.5 Flash.
- * Usa responseSchema para garantir saída 100% estruturada.
+ * Comprime a imagem antes de enviar para reduzir custo.
  * @param {File} imageFile
- * @param {string} apiKey - Chave do Google AI Studio (aistudio.google.com)
+ * @param {string} apiKey
  * @returns {Promise<{ linhas: Array }>}
  */
 export async function processScheduleImage(imageFile, apiKey) {
-  const base64 = await fileToBase64(imageFile);
+  const { base64, mimeType } = await compressImage(imageFile);
 
   const requestBody = {
     contents: [{
       parts: [
         { text: buildVisionPrompt() },
-        { inlineData: { mimeType: imageFile.type, data: base64 } },
+        { inlineData: { mimeType, data: base64 } },
       ],
     }],
     systemInstruction: {
@@ -122,7 +159,6 @@ export async function processScheduleImage(imageFile, apiKey) {
     },
   };
 
-  // Retry com backoff exponencial (até 5 tentativas)
   const delays = [1000, 2000, 4000, 8000, 16000];
   let response;
 
@@ -149,18 +185,4 @@ export async function processScheduleImage(imageFile, apiKey) {
 
   const text = response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   return parseVisionResponse(text);
-}
-
-/**
- * Converte File para base64 puro (sem prefixo data:...).
- * @param {File} file
- * @returns {Promise<string>}
- */
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }

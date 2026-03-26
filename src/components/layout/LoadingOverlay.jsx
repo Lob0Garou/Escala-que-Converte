@@ -1,10 +1,10 @@
 import React from 'react';
 
 export const LoadingOverlay = () => (
-  <div className="fixed inset-0 bg-[#0B0F1A]/90 flex items-center justify-center z-50 backdrop-blur-sm">
-    <div className="bg-[#121620] border border-white/10 rounded-2xl p-8 shadow-2xl text-center">
-      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#E30613] mx-auto mb-4"></div>
-      <p className="text-gray-300 font-medium tabular-nums text-sm">Processando...</p>
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-base/85 backdrop-blur-sm">
+    <div className="rounded-[28px] border border-border/70 bg-bg-surface/90 px-8 py-7 text-center shadow-2xl">
+      <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent-main" />
+      <p className="text-sm font-medium tabular-nums text-text-secondary">Processando...</p>
     </div>
   </div>
 );

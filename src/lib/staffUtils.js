@@ -5,7 +5,7 @@ const getTimeField = (person, primaryKey, fallbackKey) => {
     return '';
 };
 
-const getHour = (timeValue) => {
+export const getHour = (timeValue) => {
     if (!timeValue || typeof timeValue !== 'string' || !timeValue.includes(':')) return null;
     const hour = parseInt(timeValue.split(':')[0], 10);
     return Number.isFinite(hour) ? hour : null;

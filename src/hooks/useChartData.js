@@ -1,22 +1,24 @@
 import { useMemo } from 'react';
-import { computeThermalMetrics } from '../lib/thermalBalance';
+import { computeThermalMetrics } from '../lib/thermalBalance_v5';
 import { parseNumber, findAndParseConversion, parseFluxValue } from '../lib/parsers';
 import { calculateStaffByHour } from '../lib/staffUtils';
 import { computeCriticalDrops } from '../lib/insightEngine';
 import { countWeekdaysInMonth } from '../lib/dateUtils';
+import { isSameDayName, normalizeDayName } from '../lib/dayUtils';
 
 export const useChartData = (cuponsData, staffRows, selectedDay, diasSemana) => {
     const today = useMemo(() => new Date(), []);
+    const normalizedSelectedDay = useMemo(() => normalizeDayName(selectedDay), [selectedDay]);
 
     const weekdayCount = useMemo(
-        () => countWeekdaysInMonth(today.getFullYear(), today.getMonth(), selectedDay),
-        [selectedDay, today],
+        () => countWeekdaysInMonth(today.getFullYear(), today.getMonth(), normalizedSelectedDay),
+        [normalizedSelectedDay, today],
     );
 
     const dailyData = useMemo(() => {
         if (!cuponsData.length) return null;
 
-        const dayMapping = diasSemana[selectedDay];
+        const dayMapping = diasSemana[normalizedSelectedDay] || diasSemana[selectedDay];
         const totalRow = cuponsData.find(
             (row) => row['Dia da Semana'] === dayMapping && row['cod_hora_entrada'] === 'Total',
         );
@@ -35,11 +37,11 @@ export const useChartData = (cuponsData, staffRows, selectedDay, diasSemana) => 
         );
 
         const effectiveEscalaData = staffRows
-            .filter((row) => row.dia === selectedDay)
+            .filter((row) => isSameDayName(row.dia, normalizedSelectedDay))
             .map((row) => ({
                 id: row.id,
                 raw: row,
-                DIA: row.dia,
+                DIA: normalizedSelectedDay,
                 ATLETA: row.nome,
                 nome: row.nome,
                 entrada: row.entrada,
@@ -77,7 +79,7 @@ export const useChartData = (cuponsData, staffRows, selectedDay, diasSemana) => 
             maxHour,
             operatingHourCount: operatingHours.length || 1,
         };
-    }, [cuponsData, staffRows, selectedDay, diasSemana, weekdayCount]);
+    }, [cuponsData, staffRows, selectedDay, normalizedSelectedDay, diasSemana, weekdayCount]);
 
     const chartData = useMemo(() => {
         if (!dailyData || dailyData.length === 0) return [];
@@ -114,10 +116,9 @@ export const useChartData = (cuponsData, staffRows, selectedDay, diasSemana) => 
 
         if (basicData.length === 0) return [];
 
-        const maxStaff = Math.max(...basicData.map((point) => Number(point.funcionarios) || 0)) || 1;
-        const maxPercentualFluxo = Math.max(...basicData.map((point) => Number(point.percentualFluxo) || 0));
-        const safeMaxPct = maxPercentualFluxo === 0 ? 1 : maxPercentualFluxo;
-        const scaleFactor = safeMaxPct / maxStaff;
+        // Staff como % do total de staff-horas (análogo a percentualFluxo = % do total de fluxo).
+        // Isso garante escala estável: redistribuir intervalos/shifts não altera a escala visual.
+        const totalStaffHours = basicData.reduce((sum, point) => sum + (Number(point.funcionarios) || 0), 0) || 1;
 
         const hourlyDataForThermal = basicData.map((item) => ({
             hour: parseInt(item.hora, 10),
@@ -135,7 +136,7 @@ export const useChartData = (cuponsData, staffRows, selectedDay, diasSemana) => 
                 fluxo: Number(item.fluxo),
                 conversao: Number(item.conversao),
                 funcionarios_real: Number(item.funcionarios),
-                funcionarios_visual: Number(item.funcionarios) * scaleFactor,
+                funcionarios_visual: parseFloat(((Number(item.funcionarios) / totalStaffHours) * 100).toFixed(1)),
                 pontoCritico:
                     Number(item.fluxo) > 50 && Number(item.conversao) < 10
                         ? Number(item.percentualFluxo)

@@ -31,20 +31,20 @@ export const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#1a1e27] border border-white/10 rounded-2xl shadow-2xl w-[320px] overflow-hidden transform transition-all scale-100">
-        <div className="bg-[#11141a] p-4 border-b border-white/5 flex items-center justify-between">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-bg-surface border border-border rounded-2xl shadow-2xl w-[320px] overflow-hidden transform transition-all scale-100">
+        <div className="bg-bg-elevated p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             {step === 'minute' && (
-              <button onClick={() => setStep('hour')} className="text-slate-400 hover:text-white transition-colors" aria-label="Voltar para seleção de hora">
+              <button onClick={() => setStep('hour')} className="text-text-muted hover:text-text-primary transition-colors" aria-label="Voltar para seleção de hora">
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-widest">
+            <h3 className="text-xs font-bold text-text-primary uppercase tracking-widest">
               {step === 'hour' ? 'Escolha a Hora' : `Hora: ${selectedHour}h`}
             </h3>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors" aria-label="Fechar modal">
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors" aria-label="Fechar modal">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -59,8 +59,8 @@ export const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue }) => 
                   className={`
                     h-10 rounded-lg text-sm font-bold tabular-nums transition-all border
                     ${selectedHour === hour
-                      ? 'bg-[#E30613] text-black border-[#E30613] shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-                      : 'bg-[#11141a] border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
+                      ? 'bg-accent-main text-white border-accent-main shadow-sm'
+                      : 'bg-bg-elevated border-border text-text-secondary hover:bg-bg-overlay hover:border-border hover:text-text-primary'
                     }
                   `}
                 >
@@ -72,13 +72,13 @@ export const TimePickerModal = ({ isOpen, onClose, onSelect, initialValue }) => 
 
           {step === 'minute' && (
             <div className="flex flex-col gap-4">
-              <p className="text-xs text-center text-slate-500 uppercase tracking-widest">Selecione os minutos</p>
+              <p className="text-xs text-center text-text-muted uppercase tracking-widest">Selecione os minutos</p>
               <div className="grid grid-cols-2 gap-3">
                 {minutes.map((minute) => (
                   <button
                     key={minute}
                     onClick={() => handleMinuteClick(minute)}
-                    className="h-14 rounded-xl bg-[#11141a] border border-white/5 text-xl font-bold text-white hover:bg-[#E30613]/20 hover:border-[#E30613] hover:text-[#E30613] transition-all tabular-nums"
+                    className="h-14 rounded-xl bg-bg-elevated border border-border text-xl font-bold text-text-primary hover:bg-accent-light hover:border-accent-border hover:text-accent-main transition-all tabular-nums"
                   >
                     :{minute}
                   </button>

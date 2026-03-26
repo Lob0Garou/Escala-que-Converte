@@ -1,145 +1,128 @@
-/**
- * StaffRanking.jsx
- * Componente de ranking visual de vendedores com medalhas e delta.
- */
-
 import { useMemo } from 'react';
 import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { calculateStaffPerformance } from '../../lib/staffPerformance.js';
-import { parseFluxValue, parseNumber } from '../../lib/parsers.js';
 
-/**
- * @param {Object} props
- * @param {Array}  props.sellers      – lista de vendedores (de staffData)
- * @param {Array}  props.sales        – registros de venda (de salesData)
- * @param {Array}  props.cuponsData   – dados de cupons para flowByHour
- * @param {string} props.selectedDate – data selecionada "YYYY-MM-DD"
- */
-export default function StaffRanking({ sellers, sales, cuponsData, selectedDate }) {
-  // flowByHour a partir de cuponsData
-  const flowByHour = useMemo(() => {
-    if (!cuponsData?.length) return {};
-    const result = {};
-    cuponsData.forEach(row => {
-      const hour = parseNumber(row.hora);
-      const flow = parseFluxValue(row.fluxo || row.flow || row.conversao);
-      if (hour && flow) result[hour] = (result[hour] || 0) + flow;
-    });
-    return result;
-  }, [cuponsData]);
-
-  // Ranking via calculateStaffPerformance
+export default function StaffRanking({ staffRows, cuponsData, selectedDay, diasSemana }) {
   const ranking = useMemo(() => {
-    return calculateStaffPerformance(sellers, sales, selectedDate);
-  }, [sellers, sales, selectedDate]);
+    return calculateStaffPerformance(staffRows, cuponsData, selectedDay, diasSemana);
+  }, [staffRows, cuponsData, selectedDay, diasSemana]);
 
-  // Estatísticas
   const stats = useMemo(() => {
     if (!ranking.length) return { best: null, avg: 0, worst: null };
-    const conversions = ranking.map(r => r.conversion);
-    const avg = conversions.reduce((a, b) => a + b, 0) / conversions.length;
-    return {
-      best: ranking[0],
-      avg,
-      worst: ranking[ranking.length - 1],
-    };
+    const avg = ranking.reduce((a, r) => a + r.conversion, 0) / ranking.length;
+    return { best: ranking[0], avg, worst: ranking[ranking.length - 1] };
   }, [ranking]);
 
-  // Medalhas
-  const medalColors = ['text-amber-500', 'text-slate-400', 'text-amber-700'];
-  const medalBg = ['bg-amber-50', 'bg-slate-50', 'bg-amber-50'];
+  const medalColors = ['text-amber-500', 'text-zinc-400', 'text-orange-500'];
+  const medalBg = ['bg-amber-500/15', 'bg-zinc-400/15', 'bg-orange-500/15'];
+
+  if (!ranking.length) {
+    return (
+      <section className="panel-surface p-5 sm:p-6">
+        <div className="mb-3 flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-amber-500" />
+          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-text-primary">
+            Ranking de vendedores
+          </h3>
+        </div>
+        <p className="text-sm font-medium italic text-text-muted">Sem dados para o dia selecionado.</p>
+      </section>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
-        <Trophy className="w-5 h-5 text-amber-500" />
-        <h3 className="font-semibold text-gray-800">Ranking de Vendedores</h3>
+    <section className="panel-surface p-5 sm:p-6">
+      <div className="mb-5 flex items-center justify-between border-b border-border/70 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-500/10">
+            <Trophy className="h-4 w-4 text-amber-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold tracking-tight text-text-primary">Ranking diário</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">{selectedDay}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Grid com melhor/média/pior */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-amber-50 rounded-lg p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">Melhor</p>
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-center">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-500">Melhor</p>
           {stats.best && (
             <>
-              <p className="font-bold text-amber-600 truncate">{stats.best.name}</p>
-              <p className="text-sm text-amber-700">{stats.best.conversion.toFixed(2)}</p>
+              <p className="truncate text-sm font-semibold leading-tight text-text-primary">{stats.best.name}</p>
+              <p className="text-xs font-semibold tabular-nums text-amber-500">{stats.best.conversion.toFixed(1)}%</p>
             </>
           )}
         </div>
-        <div className="bg-gray-50 rounded-lg p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">Média</p>
-          <p className="font-bold text-gray-700">{stats.avg.toFixed(2)}</p>
+
+        <div className="rounded-2xl border border-border/70 bg-bg-elevated/70 p-3 text-center">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">Média</p>
+          <p className="text-sm font-semibold tabular-nums text-text-primary">{stats.avg.toFixed(1)}%</p>
         </div>
-        <div className="bg-red-50 rounded-lg p-3 text-center">
-          <p className="text-xs text-gray-500 mb-1">Pior</p>
+
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-center">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-red-500">Pior</p>
           {stats.worst && (
             <>
-              <p className="font-bold text-red-600 truncate">{stats.worst.name}</p>
-              <p className="text-sm text-red-700">{stats.worst.conversion.toFixed(2)}</p>
+              <p className="truncate text-sm font-semibold leading-tight text-text-primary">{stats.worst.name}</p>
+              <p className="text-xs font-semibold tabular-nums text-red-500">{stats.worst.conversion.toFixed(1)}%</p>
             </>
           )}
         </div>
       </div>
 
-      {/* Lista de vendedores */}
-      <div className="space-y-2">
+      <div className="custom-scroll max-h-[320px] space-y-2 overflow-y-auto pr-1">
         {ranking.map((seller, idx) => {
           const pos = idx + 1;
           const delta = seller.delta;
-          const deltaAbs = Math.abs(delta);
 
-          // Cor do delta
-          let deltaColor = 'text-gray-400';
+          let deltaColor = 'text-text-muted bg-bg-elevated';
           let DeltaIcon = Minus;
           if (delta > 0.5) {
-            deltaColor = 'text-green-600';
+            deltaColor = 'text-green-brand bg-green-bg';
             DeltaIcon = TrendingUp;
           } else if (delta < -0.5) {
-            deltaColor = 'text-red-600';
+            deltaColor = 'text-red-brand bg-red-bg';
             DeltaIcon = TrendingDown;
           }
 
           return (
             <div
-              key={seller.id}
-              className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+              key={seller.id ?? seller.name}
+              className="flex items-center gap-3 rounded-2xl border border-transparent px-3 py-2.5 transition-all hover:border-border/70 hover:bg-bg-elevated/60"
             >
-              {/* Medalha */}
               {pos <= 3 ? (
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${medalBg[pos - 1]}`}>
-                  <span className={`text-sm font-bold ${medalColors[pos - 1]}`}>
-                    {pos}
-                  </span>
+                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${medalBg[pos - 1]}`}>
+                  <span className={`text-xs font-semibold ${medalColors[pos - 1]}`}>{pos}</span>
                 </div>
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-500">{pos}</span>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-bg-elevated">
+                  <span className="text-xs font-semibold text-text-muted">{pos}</span>
                 </div>
               )}
 
-              {/* Nome */}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-800 truncate">{seller.name}</p>
-                <p className="text-xs text-gray-400">{seller.hours.toFixed(1)}h</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-text-primary">{seller.name}</p>
+                <p className="mt-0.5 text-[10px] font-medium text-text-secondary">
+                  {seller.hoursWorked}h · <span className="font-semibold tabular-nums">{seller.totalFlow}</span> fluxo
+                </p>
               </div>
 
-              {/* Conversão */}
-              <div className="text-right mr-2">
-                <p className="font-semibold text-gray-800">{seller.conversion.toFixed(2)}</p>
+              <div className="mr-2 text-right">
+                <p className="text-sm font-semibold tracking-tight tabular-nums text-text-primary">{seller.conversion.toFixed(1)}%</p>
               </div>
 
-              {/* Delta com ícone */}
-              <div className={`flex items-center gap-1 ${deltaColor}`}>
-                <DeltaIcon className="w-4 h-4" />
-                <span className="text-sm font-medium">
-                  {delta > 0 ? '+' : ''}{delta.toFixed(2)}
+              <div className={`flex min-w-[64px] items-center justify-center gap-0.5 rounded-xl px-2 py-1 ${deltaColor}`}>
+                <DeltaIcon className="h-3 w-3" />
+                <span className="text-[10px] font-semibold tabular-nums">
+                  {delta > 0 ? '+' : ''}
+                  {delta.toFixed(1)}
                 </span>
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

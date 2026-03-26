@@ -1,7 +1,8 @@
 import React from 'react';
+import { isSameDayName } from '../../lib/dayUtils';
 
 export const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
-  const colabsDoDia = staffRows.filter((row) => row.dia === dia && row.nome !== '' && row.entrada);
+  const colabsDoDia = staffRows.filter((row) => isSameDayName(row.dia, dia) && row.nome !== '' && row.entrada);
 
   colabsDoDia.sort((a, b) => {
     const normalizeTime = (time) => {
@@ -17,71 +18,83 @@ export const SimpleDayCard = ({ dia, staffRows, onTimeClick }) => {
   });
 
   return (
-    <div className="bg-[#1a1e27] rounded-xl border border-white/5 overflow-hidden hover:border-white/10 transition-colors flex flex-col h-full">
-      <div className="px-4 py-3 bg-[#222835] border-b border-white/5 flex justify-between items-center">
-        <span className="font-semibold text-slate-200 text-sm tracking-wide">{dia}</span>
-        <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-slate-400 font-bold tabular-nums">
+    <div className="flex h-full min-h-[220px] flex-col overflow-hidden rounded-[24px] border border-border/70 bg-bg-surface shadow-sm transition-colors hover:border-accent-border">
+      <div className="flex items-center justify-between border-b border-border/70 bg-bg-elevated/80 px-4 py-3">
+        <span className="text-sm font-semibold tracking-wide text-text-primary">{dia}</span>
+        <span className="rounded-full border border-border/70 bg-bg-surface px-2.5 py-1 text-[10px] font-bold tabular-nums text-text-secondary">
           {colabsDoDia.length}
         </span>
       </div>
 
-      <div className="divide-y divide-white/5 flex-1">
-        {colabsDoDia.length > 0 ? colabsDoDia.map((colab) => {
-          const nameParts = colab.nome.split(' ');
-          const firstName = nameParts[0];
-          const surname = nameParts.slice(1).join(' ');
+      <div className="flex-1 divide-y divide-border/70">
+        {colabsDoDia.length > 0 ? (
+          colabsDoDia.map((colab) => {
+            const nameParts = colab.nome.split(' ');
+            const firstName = nameParts[0];
+            const surname = nameParts.slice(1).join(' ');
 
-          return (
-            <div key={colab.id} className="px-3 py-2 flex items-center justify-between hover:bg-white/[0.02] transition-colors group">
-              <div className="flex flex-col min-w-0 mr-2 justify-center">
-                <span className="text-xs font-black text-slate-300 truncate leading-none">{firstName}</span>
-                {surname && (
-                  <span className="text-[9px] font-bold text-slate-500 truncate leading-none uppercase mt-0.5">
-                    {surname}
+            return (
+              <div key={colab.id} className="group flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-bg-elevated/60">
+                <div className="flex min-w-0 flex-1 flex-col justify-center">
+                  <span className="truncate text-xs font-semibold leading-none text-text-primary sm:text-sm">
+                    {firstName}
                   </span>
-                )}
+                  {surname && (
+                    <span className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                      {surname}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="group/time flex cursor-pointer flex-col items-center px-1.5"
+                    onClick={() => onTimeClick(colab.id, 'entrada', colab.entrada)}
+                  >
+                    <span className="mb-0.5 text-[8px] font-bold uppercase tracking-wider text-text-muted transition-colors group-hover/time:text-accent-main">
+                      Ent
+                    </span>
+                    <span className={`text-[11px] font-bold tabular-nums tracking-tight ${colab.entrada ? 'text-text-primary' : 'text-text-muted/50'}`}>
+                      {colab.entrada || '--'}
+                    </span>
+                  </div>
+
+                  <span className="text-[8px] font-bold text-text-muted">›</span>
+
+                  <div
+                    className="group/time flex cursor-pointer flex-col items-center px-1.5"
+                    onClick={() => onTimeClick(colab.id, 'intervalo', colab.intervalo)}
+                  >
+                    <span className="mb-0.5 text-[8px] font-bold uppercase tracking-wider text-text-muted transition-colors group-hover/time:text-accent-main">
+                      Int
+                    </span>
+                    <span className={`text-[11px] font-bold tabular-nums tracking-tight ${colab.intervalo ? 'text-text-secondary' : 'text-text-muted/50'}`}>
+                      {colab.intervalo || '--'}
+                    </span>
+                  </div>
+
+                  <span className="text-[8px] font-bold text-text-muted">›</span>
+
+                  <div
+                    className="group/time flex cursor-pointer flex-col items-center px-1.5"
+                    onClick={() => onTimeClick(colab.id, 'saida', colab.saida)}
+                  >
+                    <span className="mb-0.5 text-[8px] font-bold uppercase tracking-wider text-text-muted transition-colors group-hover/time:text-accent-main">
+                      Sai
+                    </span>
+                    <span className={`text-[11px] font-bold tabular-nums tracking-tight ${colab.saida ? 'text-text-primary' : 'text-text-muted/50'}`}>
+                      {colab.saida || '--'}
+                    </span>
+                  </div>
+                </div>
               </div>
-
-              <div className="flex items-center gap-1.5 mt-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                <div className="flex flex-col items-center relative group/time">
-                  <span className="text-[7px] text-slate-600 uppercase font-black mb-px opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5">Ent</span>
-                  <span
-                    className="text-[11px] text-slate-400 font-mono cursor-pointer hover:text-white tabular-nums tracking-tight font-bold"
-                    onClick={onTimeClick ? () => onTimeClick(colab.id, 'entrada', colab.entrada) : undefined}
-                  >
-                    {colab.entrada || '--'}
-                  </span>
-                </div>
-
-                <span className="text-[8px] text-slate-700 font-black">›</span>
-
-                <div className="flex flex-col items-center relative group/time">
-                  <span className="text-[7px] text-slate-600 uppercase font-black mb-px opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5">Int</span>
-                  <span
-                    className="text-[11px] text-slate-500 font-mono cursor-pointer hover:text-white tabular-nums tracking-tight font-bold"
-                    onClick={onTimeClick ? () => onTimeClick(colab.id, 'intervalo', colab.intervalo) : undefined}
-                  >
-                    {colab.intervalo || '-'}
-                  </span>
-                </div>
-
-                <span className="text-[8px] text-slate-700 font-black">›</span>
-
-                <div className="flex flex-col items-center relative group/time">
-                  <span className="text-[7px] text-slate-600 uppercase font-black mb-px opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2.5">Sai</span>
-                  <span
-                    className="text-[11px] text-slate-400 font-mono cursor-pointer hover:text-white font-bold tabular-nums tracking-tight"
-                    onClick={onTimeClick ? () => onTimeClick(colab.id, 'saida', colab.saida) : undefined}
-                  >
-                    {colab.saida}{colab.saidaDiaSeguinte ? '+1' : ''}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        }) : (
-          <div className="px-4 py-8 text-center">
-            <span className="text-xs text-slate-700 font-medium uppercase tracking-widest">Sem Escala</span>
+            );
+          })
+        ) : (
+          <div className="flex flex-1 items-center justify-center px-4 py-8 text-center">
+            <span className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
+              Sem escala
+            </span>
           </div>
         )}
       </div>

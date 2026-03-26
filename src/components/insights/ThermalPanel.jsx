@@ -5,102 +5,123 @@ export const ThermalPanel = ({ thermalMetrics }) => {
   if (!thermalMetrics) return null;
 
   return (
-    <div className="w-full bg-[#11141a] border border-white/5 rounded-2xl shadow-xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2 border-l-4 border-emerald-500 pl-3">
-          <Thermometer className="w-4 h-4 text-emerald-400" /> Equilíbrio Térmico
+    <section className="panel-surface w-full p-5 sm:p-6">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <h3 className="flex items-center gap-2 border-l-4 border-emerald-500 pl-3 text-sm font-semibold uppercase tracking-[0.18em] text-text-primary">
+          <Thermometer className="h-4 w-4 text-emerald-500" />
+          Equilíbrio térmico
         </h3>
+
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <span className="text-slate-500 text-[10px] uppercase tracking-wider block mb-0.5">Score Global</span>
-            <span className="text-4xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent count-up">
+            <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+              Score global
+            </span>
+            <span className="count-up text-4xl font-semibold tracking-tight text-emerald-600 tabular-nums">
               {thermalMetrics.score}
             </span>
           </div>
-          <div className="text-right pl-6 border-l border-white/5">
-            <span className="text-slate-500 text-[10px] uppercase tracking-wider block mb-0.5">Média (µ)</span>
-            <span className="text-xl font-mono text-[#E30613]">{thermalMetrics.mu.toFixed(1)}</span>
-            <span className="text-slate-600 text-xs ml-1">cl/p</span>
+
+          <div className="border-l border-border/70 pl-6 text-right">
+            <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+              Média (µ)
+            </span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-semibold font-mono text-red-600">
+                {thermalMetrics.mu.toFixed(1)}
+              </span>
+              <span className="text-xs font-medium text-text-secondary">cl/p</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#1a1e27] border border-white/5 border-l-4 border-l-[#f43f5e] rounded-xl p-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[#f43f5e]/5 pointer-events-none" />
-          <h4 className="text-xs font-bold text-[#f43f5e] uppercase tracking-wider mb-3 flex items-center gap-2 relative z-10">
-            🔥 Hotspots (Alta Pressão)
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-[24px] border border-red-500/20 border-l-4 border-l-red-500 bg-red-500/5 p-4 transition-colors hover:bg-red-500/10">
+          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-500">
+            Hotspots <span className="text-[10px] font-semibold opacity-75">(Alta pressão)</span>
           </h4>
           {thermalMetrics.hotspots.length > 0 ? (
-            <div className="space-y-0 relative z-10">
+            <div className="space-y-0">
               {thermalMetrics.hotspots.map((spot, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                  <span className="text-slate-300 font-mono text-sm">{spot.hour}h</span>
-                  <div className="flex items-center gap-3">
+                <div key={index} className="flex items-center justify-between border-b border-red-500/10 py-2.5 last:border-0">
+                  <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-sm font-semibold tabular-nums text-red-500">
+                    {spot.hour}h
+                  </span>
+                  <div className="flex items-center gap-4">
                     <div className="flex flex-col items-end">
-                      <span className="text-xs text-slate-400">Idx: <strong className="text-[#f43f5e]">{spot.index.toFixed(2)}</strong></span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-400">
+                        Idx: <strong className="ml-0.5 text-xs text-red-500">{spot.index.toFixed(2)}</strong>
+                      </span>
                     </div>
-                    <div className="px-2 py-1 rounded bg-black/20 text-xs font-mono text-slate-300">
-                      {spot.pressure.toFixed(1)} <span className="text-slate-600">cl/p</span>
+                    <div className="min-w-[74px] rounded-xl border border-red-500/20 bg-bg-elevated px-2.5 py-1 text-right text-xs font-semibold tabular-nums text-text-primary shadow-sm">
+                      {spot.pressure.toFixed(1)} <span className="text-[10px] font-semibold text-red-500">cl/p</span>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-slate-500 italic py-2">Nenhum hotspot detectado</p>
+            <p className="py-2 text-xs font-medium italic text-red-400/70">Nenhum hotspot detectado</p>
           )}
         </div>
 
-        <div className="bg-[#1a1e27] border border-white/5 border-l-4 border-l-[#6366f1] rounded-xl p-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[#6366f1]/5 pointer-events-none" />
-          <h4 className="text-xs font-bold text-[#6366f1] uppercase tracking-wider mb-3 flex items-center gap-2 relative z-10">
-            🧊 Coldspots (Baixa Pressão)
+        <div className="rounded-[24px] border border-blue-500/20 border-l-4 border-l-blue-500 bg-blue-500/5 p-4 transition-colors hover:bg-blue-500/10">
+          <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-500">
+            Coldspots <span className="text-[10px] font-semibold opacity-75">(Baixa pressão)</span>
           </h4>
           {thermalMetrics.coldspots.length > 0 ? (
-            <div className="space-y-0 relative z-10">
+            <div className="space-y-0">
               {thermalMetrics.coldspots.map((spot, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                  <span className="text-slate-300 font-mono text-sm">{spot.hour}h</span>
-                  <div className="flex items-center gap-3">
+                <div key={index} className="flex items-center justify-between border-b border-blue-500/10 py-2.5 last:border-0">
+                  <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-sm font-semibold tabular-nums text-blue-500">
+                    {spot.hour}h
+                  </span>
+                  <div className="flex items-center gap-4">
                     <div className="flex flex-col items-end">
-                      <span className="text-xs text-slate-400">Idx: <strong className="text-[#6366f1]">{spot.index.toFixed(2)}</strong></span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400">
+                        Idx: <strong className="ml-0.5 text-xs text-blue-500">{spot.index.toFixed(2)}</strong>
+                      </span>
                     </div>
-                    <div className="px-2 py-1 rounded bg-black/20 text-xs font-mono text-slate-300">
-                      {spot.pressure.toFixed(1)} <span className="text-slate-600">cl/p</span>
+                    <div className="min-w-[74px] rounded-xl border border-blue-500/20 bg-bg-elevated px-2.5 py-1 text-right text-xs font-semibold tabular-nums text-text-primary shadow-sm">
+                      {spot.pressure.toFixed(1)} <span className="text-[10px] font-semibold text-blue-500">cl/p</span>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-slate-500 italic py-2">Nenhum coldspot detectado</p>
+            <p className="py-2 text-xs font-medium italic text-blue-400/70">Nenhum coldspot detectado</p>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/5">
+      <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border/70 pt-5">
         <div className="flex flex-col pl-2">
-          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Aderência à Demanda</span>
+          <span className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+            Aderência à demanda
+          </span>
           <div className="flex items-baseline gap-2">
-            <span className={`text-2xl font-bold ${thermalMetrics.adherence >= 85 ? 'text-emerald-400' : 'text-[#E30613]'}`}>
+            <span className={`text-2xl font-semibold tracking-tight tabular-nums ${thermalMetrics.adherence >= 85 ? 'text-emerald-600' : 'text-red-600'}`}>
               {thermalMetrics.adherence}%
             </span>
-            <span className="text-xs text-slate-600">Target: &gt;85%</span>
+            <span className="text-xs font-medium text-text-secondary">Target: &gt;85%</span>
           </div>
         </div>
 
-        <div className="flex flex-col pl-2 border-l border-white/5">
-          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Oportunidade (Perda)</span>
+        <div className="flex flex-col border-l border-border/70 pl-6">
+          <span className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+            Oportunidade (perda)
+          </span>
           <div className="flex items-baseline gap-2">
-            <span className={`text-2xl font-bold ${thermalMetrics.lostOpportunity === 0 ? 'text-emerald-400' : 'text-[#f43f5e]'}`}>
+            <span className={`text-2xl font-semibold tracking-tight tabular-nums ${thermalMetrics.lostOpportunity === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {thermalMetrics.lostOpportunity}
             </span>
-            <span className="text-xs text-slate-600">clientes est.</span>
+            <span className="text-xs font-medium text-text-secondary">clientes est.</span>
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

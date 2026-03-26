@@ -1,5 +1,5 @@
 
-import { optimizeScheduleRows, computeThermalMetrics, THERMAL_THRESHOLDS } from './thermalBalance.js';
+import { optimizeScheduleRows, computeThermalMetrics, THERMAL_THRESHOLDS } from './thermalBalance_v5.js';
 
 const MOCK_DATA = {
     staff: [

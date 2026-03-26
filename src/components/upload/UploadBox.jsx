@@ -1,31 +1,62 @@
 import React from 'react';
-import { Upload } from 'lucide-react';
+import { CloudUpload } from 'lucide-react';
 
-export const UploadBox = ({ type, title, onUpload, onDrag, onDrop, dragActiveState, data, errorState }) => (
+export const UploadBox = ({
+  type,
+  title,
+  onUpload,
+  onDrag,
+  onDrop,
+  dragActiveState,
+  data,
+  errorState,
+  description,
+  formats,
+}) => (
   <div
-    className={`bg-[#121620]/60 backdrop-blur-2xl border rounded-2xl shadow-xl p-6 transition-all duration-300 flex flex-col items-center justify-center h-[300px] ${dragActiveState ? 'border-[#E30613] bg-[#E30613]/5' : 'border-white/5 hover:border-white/10'}`}
+    className={`relative z-10 flex min-h-[280px] w-full flex-col items-center justify-center rounded-[30px] border p-6 shadow-[0_18px_48px_rgba(0,0,0,0.10)] transition-all duration-300 sm:min-h-[300px] sm:p-7 ${
+      dragActiveState
+        ? 'border-accent-main bg-accent-light/10 backdrop-blur-[28px] ring-4 ring-accent-light/20'
+        : 'border-border/55 bg-bg-surface/44 backdrop-blur-[28px] hover:-translate-y-0.5 hover:border-accent-border'
+    }`}
     onDragEnter={(event) => onDrag(event, type)}
     onDragLeave={(event) => onDrag(event, type)}
     onDragOver={(event) => onDrag(event, type)}
     onDrop={(event) => onDrop(event, type)}
   >
-    <label className="block cursor-pointer text-center w-full">
-      <div className="w-12 h-12 rounded-xl bg-white/5 mx-auto mb-4 flex items-center justify-center">
-        <Upload className={`w-6 h-6 ${dragActiveState ? 'text-[#E30613]' : 'text-gray-500'}`} />
+    <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center text-center">
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/70 bg-bg-elevated/80">
+        <CloudUpload
+          className={`h-7 w-7 transition-colors duration-300 ${dragActiveState ? 'text-accent-main' : 'text-text-muted'}`}
+          strokeWidth={1.7}
+        />
       </div>
-      <h3 className="text-lg font-bold text-white tracking-tight mb-1">{title}</h3>
+
+      <h3 className="text-[1.85rem] font-semibold tracking-tight text-text-primary">{title}</h3>
+
       {data.length > 0 && !errorState ? (
-        <div className="mt-2 bg-green-500/10 text-green-400 px-3 py-1 rounded-full text-xs font-bold inline-flex items-center tabular-nums">
-          ? {data.length} Regs
+        <div className="mt-6 inline-flex items-center rounded-full border border-green-brand/30 bg-green-bg px-4 py-2 text-sm font-semibold tabular-nums text-green-brand">
+          {data.length} registros importados
         </div>
       ) : errorState ? (
-        <div className="mt-2 bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-xs font-bold">
+        <div className="mt-6 rounded-full border border-red-brand/30 bg-red-bg px-4 py-2 text-sm font-semibold text-red-brand">
           {errorState}
         </div>
       ) : (
-        <p className="text-gray-500 text-xs">Arraste ou clique (.xlsx)</p>
+        <div className="mt-5 flex flex-col items-center gap-3">
+          <p className="max-w-[320px] text-[15px] leading-relaxed text-text-secondary">
+            {description || 'Arraste ou clique para carregar o arquivo.'}
+          </p>
+          <p className="text-[13px] font-medium tracking-wide text-text-muted">{formats || '( .xlsx )'}</p>
+        </div>
       )}
-      <input type="file" accept=".xlsx,.xls" onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0], type)} className="hidden" />
+
+      <input
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={(event) => event.target.files?.[0] && onUpload(event.target.files[0], type)}
+        className="hidden"
+      />
     </label>
   </div>
 );

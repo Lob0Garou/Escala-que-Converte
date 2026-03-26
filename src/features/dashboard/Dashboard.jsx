@@ -16,6 +16,7 @@ import { useChartData } from '../../hooks/useChartData';
 import { useThermalMetrics } from '../../hooks/useThermalMetrics';
 import { useRevenueCalculation } from '../../hooks/useRevenueCalculation';
 import { useTheme } from '../../hooks/useTheme';
+import { WEEK_DAY_TO_EXCEL } from '../../lib/dayUtils';
 import { FLAGS } from '../../lib/featureFlags';
 import {
   getOrCreateScheduleWeek,
@@ -51,29 +52,38 @@ const Dashboard = ({
   const [showUploadSection, setShowUploadSection] = useState(false);
   const [pickerState, setPickerState] = useState({ isOpen: false, rowId: null, field: null, value: '' });
   const [pendingEscalaRows, setPendingEscalaRows] = useState(null);
+  const [isValidating, setIsValidating] = useState(false);
+
+  const diasSemana = useMemo(() => WEEK_DAY_TO_EXCEL, []);
 
   const handleDownloadImage = useCallback(async () => {
     if (!printRef.current) return;
 
     try {
-      const scrollHeight = printRef.current.scrollHeight;
-      const windowWidth = 1600;
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
 
-      const canvas = await html2canvas(printRef.current, {
+      const printNode = printRef.current;
+      const captureWidth = printNode.scrollWidth || 1600;
+      const captureHeight = printNode.scrollHeight || printNode.offsetHeight || 900;
+
+      const canvas = await html2canvas(printNode, {
         backgroundColor: printTheme === 'dark' ? '#0a0c10' : '#ffffff',
         scale: 2,
         useCORS: true,
         allowTaint: true,
         logging: false,
-        width: windowWidth,
-        height: scrollHeight + 100,
-        windowWidth,
-        windowHeight: scrollHeight + 100,
+        width: captureWidth,
+        height: captureHeight,
+        windowWidth: captureWidth,
+        windowHeight: captureHeight,
         onclone: (clonedDoc) => {
-          const element = clonedDoc.querySelector('[data-print-target]');
+          const element = clonedDoc.querySelector('[data-print-root]');
           if (element) {
             element.style.display = 'flex';
             element.style.visibility = 'visible';
+            element.style.opacity = '1';
             if (printTheme === 'light') {
               element.style.background = '#ffffff';
             }
@@ -121,19 +131,6 @@ const Dashboard = ({
     setCuponsData,
     setSalesData,
   } = useFileProcessing(selectedDay, handleEscalaProcessed);
-
-  const diasSemana = useMemo(
-    () => ({
-      SEGUNDA: '1. Seg',
-      ['TERÇA']: '2. Ter',
-      QUARTA: '3. Qua',
-      QUINTA: '4. Qui',
-      SEXTA: '5. Sex',
-      ['SÁBADO']: '6. Sab',
-      DOMINGO: '7. Dom',
-    }),
-    [],
-  );
 
   const staffData = useStaffData(selectedDay, cuponsData, diasSemana);
   const {
@@ -184,8 +181,6 @@ const Dashboard = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStore?.id]);
 
-  const [isValidating, setIsValidating] = useState(false);
-
   const handleValidateSchedule = async () => {
     if (!FLAGS.PERSIST_TO_SUPABASE || !activeWeekId || !activeStore?.id) return;
     if (staffRows.length === 0) return;
@@ -213,7 +208,6 @@ const Dashboard = ({
     updateWeekSnapshot(activeWeekId, activeStore.id, { salesData });
   }, [salesData, activeWeekId, activeStore?.id]);
 
-  // ─── Auto-save staffRows quando mudam (debounce 1.5s) ────────────────────
   useEffect(() => {
     if (!FLAGS.PERSIST_TO_SUPABASE || !activeWeekId || !activeStore?.id) return;
     if (isLoadingFromDbRef.current) return;
@@ -222,7 +216,7 @@ const Dashboard = ({
     clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
       saveShiftsBatch(activeWeekId, activeStore.id, staffRows).catch((err) =>
-        console.error('[dashboard] auto-save staffRows falhou:', err)
+        console.error('[dashboard] auto-save staffRows falhou:', err),
       );
     }, 1500);
 
@@ -266,7 +260,7 @@ const Dashboard = ({
         <img
           src={CENTAURO_BRAND.bgLogo}
           alt=""
-          className="w-[92%] h-[92%] object-contain select-none transition-opacity duration-700 ease-in-out grayscale opacity-[0.02]"
+          className="h-[92%] w-[92%] object-contain select-none opacity-[0.02] grayscale transition-opacity duration-700 ease-in-out"
         />
         <div className="absolute inset-0 bg-[radial-gradient(var(--text-primary)_1px,transparent_1px)] [background-size:20px_20px] opacity-[0.025]" />
       </div>
@@ -286,7 +280,7 @@ const Dashboard = ({
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
         }
-        input[type="time"]::-webkit-calendar-picker-indicator {
+        input[type='time']::-webkit-calendar-picker-indicator {
           filter: invert(1) opacity(0.5);
           cursor: pointer;
         }
@@ -323,7 +317,6 @@ const Dashboard = ({
               dragActive={dragActive}
               setDragActive={setDragActive}
               cuponsData={cuponsData}
-              salesData={salesData}
               error={error}
               onEscalaProcessed={handleEscalaProcessed}
               processFile={processFile}
@@ -338,7 +331,7 @@ const Dashboard = ({
               setShowUploadSection={setShowUploadSection}
             />
 
-            <main className="flex-1 min-h-0 w-full overflow-y-auto custom-scroll">
+            <main className="custom-scroll flex-1 min-h-0 w-full overflow-y-auto">
               <div className="page-shell py-6 lg:py-8 2xl:py-10">
                 <MainContent
                   chartData={chartData}
@@ -365,11 +358,11 @@ const Dashboard = ({
         )}
 
         {showUploadSection && (
-          <div className="absolute inset-0 z-50 bg-bg-base/85 backdrop-blur-md">
+          <div className="absolute inset-0 z-50 bg-bg-base/56 backdrop-blur-[2px]">
             <div className="relative mx-auto flex h-full w-full max-w-[1600px] items-start justify-center py-6 sm:py-8">
               <button
                 onClick={() => setShowUploadSection(false)}
-                className="absolute right-4 top-4 rounded-full border border-border/70 bg-bg-surface/90 px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-bg-elevated sm:right-6 sm:top-6"
+                className="absolute right-4 top-4 rounded-full border border-border/60 bg-bg-surface/62 px-4 py-2 text-sm font-medium text-text-primary shadow-sm backdrop-blur-xl transition-colors hover:bg-bg-elevated/72 sm:right-6 sm:top-6"
               >
                 Fechar
               </button>
@@ -389,7 +382,7 @@ const Dashboard = ({
           </div>
         )}
 
-        <div className="fixed -left-[99999px] top-0" data-print-target>
+        <div className="pointer-events-none fixed left-0 top-0 -z-10 opacity-0" aria-hidden="true">
           <WeeklyScalePrint ref={printRef} staffRows={staffRows} theme={printTheme} />
         </div>
 

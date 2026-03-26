@@ -29,3 +29,7 @@ dist-ssr
 # Debug/test output files (not documentation)
 *.txt
 !README.txt
+
+# Local agent metadata
+.claude/
+.agents/

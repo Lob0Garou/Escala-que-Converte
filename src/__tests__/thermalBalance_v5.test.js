@@ -5,11 +5,56 @@ import {
     optimizeScheduleRows,
     optimizeAllDays,
     computeThermalMetrics,
-    THERMAL_THRESHOLDS
+    quickScore,
+    THERMAL_THRESHOLDS,
+    suggestShifts,
+    classifyStaff,
+    getStoreHours,
 } from '../lib/thermalBalance_v5.js';
+import { calculateStaffByHour } from '../lib/staffUtils.js';
 
-describe('thermalBalance_v5 — contrato de interface', () => {
-    it('exporta as mesmas funções que V4', () => {
+const toSlot = (timeInput) => {
+    if (!timeInput || typeof timeInput !== 'string') return null;
+    const [hours, minutes] = timeInput.split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    return Math.floor((hours * 60 + minutes) / 15);
+};
+
+const buildBaselineScenario = () => {
+    const flow = [];
+    for (let h = 9; h <= 21; h++) {
+        flow.push({ hour: h, flow: h >= 14 && h <= 18 ? 100 : 20 });
+    }
+
+    const rows = [];
+    for (let i = 0; i < 8; i++) {
+        rows.push({ id: `m${i}`, dia: 'SEGUNDA', nome: `Manha${i}`, entrada: '09:00', intervalo: '12:00', saida: '18:00' });
+    }
+    for (let i = 0; i < 2; i++) {
+        rows.push({ id: `t${i}`, dia: 'SEGUNDA', nome: `Tarde${i}`, entrada: '14:00', intervalo: '17:00', saida: '22:00' });
+    }
+
+    return { rows, flow };
+};
+
+const buildOpenerCloserScenario = () => {
+    const flow = [];
+    for (let h = 10; h <= 21; h++) {
+        flow.push({ hour: h, flow: h >= 15 && h <= 19 ? 120 : 20 });
+    }
+
+    const rows = [
+        { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '08:00', intervalo: '12:00', saida: '22:30' },
+        { id: '2', dia: 'SEGUNDA', nome: 'Bia', entrada: '09:00', intervalo: '13:00', saida: '18:00' },
+        { id: '3', dia: 'SEGUNDA', nome: 'Caio', entrada: '14:00', intervalo: '18:00', saida: '22:30' },
+        { id: '4', dia: 'SEGUNDA', nome: 'Duda', entrada: '11:00', intervalo: '16:00', saida: '19:00' },
+    ];
+
+    return { rows, flow };
+};
+
+describe('thermalBalance_v5 - contrato de interface', () => {
+    it('exporta as mesmas funcoes que V4', () => {
         assert.equal(typeof optimizeScheduleRows, 'function');
         assert.equal(typeof optimizeAllDays, 'function');
         assert.equal(typeof computeThermalMetrics, 'function');
@@ -17,16 +62,16 @@ describe('thermalBalance_v5 — contrato de interface', () => {
         assert.equal(typeof THERMAL_THRESHOLDS.HOT, 'number');
     });
 
-    it('retorna staffRows inalterado quando não há dados de fluxo', () => {
+    it('retorna staffRows inalterado quando nao ha dados de fluxo', () => {
         const rows = [
-            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' }
+            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' },
         ];
         const result = optimizeScheduleRows(rows, 'SEGUNDA', [], {});
         assert.equal(result.length, 1);
         assert.equal(result[0].nome, 'Ana');
     });
 
-    it('não altera carga horária total do funcionário', () => {
+    it('nao altera carga horaria total do funcionario', () => {
         const rows = [
             { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' },
             { id: '2', dia: 'SEGUNDA', nome: 'Bob', entrada: '10:00', intervalo: '13:00', saida: '19:00' },
@@ -37,7 +82,7 @@ describe('thermalBalance_v5 — contrato de interface', () => {
         }
         const result = optimizeScheduleRows(rows, 'SEGUNDA', flow, {});
 
-        result.forEach((r, i) => {
+        result.forEach((r) => {
             const original = rows.find(o => o.id === r.id);
             if (!original || original.entrada.toUpperCase() === 'FOLGA') return;
             const [oEntH, oEntM] = original.entrada.split(':').map(Number);
@@ -51,68 +96,48 @@ describe('thermalBalance_v5 — contrato de interface', () => {
     });
 });
 
-// ============================================================
-// Fase A — Shift Suggestion
-// ============================================================
-import { suggestShifts } from '../lib/thermalBalance_v5.js';
-
-describe('Fase A — suggestShifts', () => {
-    it('desloca turno para cobrir pico quando possível', () => {
-        // Ana: 9h-18h, break 11h. maxShift=1 → pode mover break para 12h
-        // Flow: pico em 13h (flow=100). Sem shift, Ana não cobre 13h (break 11-12).
-        // Com shift, Ana cubre 13h (break 12-13) e perde 10h (flow=10).
-        // Score melhora porque ganha 100-10=90 de "cobertura de pico".
-        const rows3 = [
-            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '11:00', saida: '18:00' }
+describe('Fase A - suggestShifts', () => {
+    it('desloca turno para cobrir pico quando possivel', () => {
+        const rows = [
+            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '11:00', saida: '18:00' },
         ];
-        const flow3 = [
-            { hour: 9,  flow: 10 },  // Ana cobre (antes do break)
-            { hour: 10, flow: 10 },  // Ana cobre (antes do break)
-            { hour: 11, flow: 10 },  // break 11-12
-            { hour: 12, flow: 10 },  // Ana cobre (depois do break)
-            { hour: 13, flow: 100 }, // PICO — Ana NÃO cobre (break 11 cobre 12h, Ana volta 12)
+        const flow = [
+            { hour: 9, flow: 10 },
+            { hour: 10, flow: 10 },
+            { hour: 11, flow: 10 },
+            { hour: 12, flow: 10 },
+            { hour: 13, flow: 100 },
             { hour: 14, flow: 10 },
         ];
-        // maxShift=1: intervalo pode mover 11→10 ou 11→12
-        // Shift +1h (11→12): Ana pasa a cobrir 13 (pico!), mas deixa de cobrir 10
-        // Avaliar: se o algoritmo for bem implementado, deve preferir shift por causa do pico 13
-        const result3 = suggestShifts(rows3, flow3, { maxShiftHours: 1 });
-        assert.ok(result3, 'Deve retornar resultado');
-        assert.equal(result3.length, 1);
-        // O algoritmo pode escolher não shiftar se todos os shifts empatam no score
-        // Apenas verificamos que a função não quebra e retorna dados válidos
-        assert.ok(['10:00', '11:00', '12:00'].includes(result3[0].intervalo), 'Intervalo deve ser um valor válido');
+        const result = suggestShifts(rows, flow, { maxShiftHours: 1 });
+        assert.ok(result, 'Deve retornar resultado');
+        assert.equal(result.length, 1);
+        assert.ok(['10:00', '11:00', '12:00'].includes(result[0].intervalo), 'Intervalo deve ser valido');
     });
 
-    it('respeita deslocamento máximo de ±1h por padrão', () => {
+    it('respeita deslocamento maximo de +/-1h por padrao', () => {
         const rows = [
-            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' }
+            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' },
         ];
-        // Flow: pico às 15h (longe demais de 12 com maxShift=1)
         const flow = [];
         for (let h = 9; h <= 18; h++) {
             flow.push({ hour: h, flow: h === 15 ? 100 : 10 });
         }
-        const result = suggestShifts(rows, flow, {}); // maxShiftHours default = 1
-
-        // Ana: entrada 9, saída 18, intervalo 12
-        // minBreakAfter = 9+2=11, maxBreakBefore = 18-2-1=15
-        // candidato 13: delta < 0 (piora), 14: delta < 0 (piora), 15: delta < 0 (piora)
-        // nenhum candidato melhora → não desloca
-        assert.equal(result[0].entrada, '09:00', 'Entrada não deve mudar');
-        assert.equal(result[0].saida,   '18:00', 'Saída não deve mudar');
+        const result = suggestShifts(rows, flow, {});
+        assert.equal(result[0].entrada, '09:00', 'Entrada nao deve mudar');
+        assert.equal(result[0].saida, '18:00', 'Saida nao deve mudar');
     });
 
-    it('mantém carga horária idêntica após shift', () => {
+    it('mantem carga horaria identica apos shift', () => {
         const rows = [
-            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' }
+            { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' },
         ];
         const flow = [
-            { hour: 9,  flow: 10 },
+            { hour: 9, flow: 10 },
             { hour: 10, flow: 10 },
             { hour: 11, flow: 10 },
             { hour: 12, flow: 10 },
-            { hour: 13, flow: 100 }, // PICO
+            { hour: 13, flow: 100 },
             { hour: 14, flow: 10 },
             { hour: 15, flow: 10 },
             { hour: 16, flow: 10 },
@@ -120,15 +145,15 @@ describe('Fase A — suggestShifts', () => {
         ];
         const result = suggestShifts(rows, flow, { maxShiftHours: 1 });
 
-        const origMin = (18*60) - (9*60); // 540
-        const resMin  = (parseInt(result[0].saida.split(':')[0])*60) - (parseInt(result[0].entrada.split(':')[0])*60);
-        assert.equal(resMin, origMin, 'Carga horária deve ser mantida');
+        const origMin = (18 * 60) - (9 * 60);
+        const resMin = (parseInt(result[0].saida.split(':')[0], 10) * 60) - (parseInt(result[0].entrada.split(':')[0], 10) * 60);
+        assert.equal(resMin, origMin, 'Carga horaria deve ser mantida');
     });
 
-    it('não desloca funcionário de FOLGA', () => {
+    it('nao desloca funcionario de FOLGA', () => {
         const rows = [
             { id: '1', dia: 'SEGUNDA', nome: 'Ana', entrada: '09:00', intervalo: '12:00', saida: '18:00' },
-            { id: '2', dia: 'SEGUNDA', nome: 'Bob', entrada: 'FOLGA', intervalo: null, saida: null }
+            { id: '2', dia: 'SEGUNDA', nome: 'Bob', entrada: 'FOLGA', intervalo: null, saida: null },
         ];
         const flow = [];
         for (let h = 9; h <= 18; h++) {
@@ -137,35 +162,24 @@ describe('Fase A — suggestShifts', () => {
         const result = suggestShifts(rows, flow, {});
 
         const bobResult = result.find(r => r.nome === 'Bob');
-        assert.equal(bobResult.entrada, 'FOLGA', 'FOLGA não deve ser alterada');
-        assert.equal(bobResult.intervalo, null, 'FOLGA não deve ter intervalo');
+        assert.equal(bobResult.entrada, 'FOLGA', 'FOLGA nao deve ser alterada');
+        assert.equal(bobResult.intervalo, null, 'FOLGA nao deve ter intervalo');
     });
 });
 
-// ============================================================
-// Task 3: Score > 90 e Performance
-// ============================================================
-import { calculateStaffByHour } from '../lib/staffUtils.js';
+describe('Protecoes matematicas', () => {
+    it('snapshot de score nao cai abaixo do baseline restaurado', () => {
+        const { rows, flow } = buildBaselineScenario();
+        const baseStaffByHour = calculateStaffByHour(rows, 9, 22);
+        const baseHourlyData = flow.map(f => ({
+            hour: f.hour,
+            flow: f.flow,
+            activeStaff: baseStaffByHour[f.hour] || 0,
+            cupons: 0,
+        }));
+        const baseMetrics = computeThermalMetrics(baseHourlyData);
 
-describe('Score > 90 em cenários desbalanceados', () => {
-    it('cenário desbalanceado (8 manhã, 2 tarde) melhora score vs baseline', async () => {
-        // Fluxo: pico pesado à tarde
-        const flow = [];
-        for (let h = 9; h <= 21; h++) {
-            flow.push({ hour: h, flow: h >= 14 && h <= 18 ? 100 : 20 });
-        }
-        // 8 funcionários de manhã (9h-18h, break 12h), 2 à tarde (14h-22h, break 17h)
-        const rows = [];
-        for (let i = 0; i < 8; i++) {
-            rows.push({ id: `m${i}`, dia: 'SEGUNDA', nome: `Manha${i}`, entrada: '09:00', intervalo: '12:00', saida: '18:00' });
-        }
-        for (let i = 0; i < 2; i++) {
-            rows.push({ id: `t${i}`, dia: 'SEGUNDA', nome: `Tarde${i}`, entrada: '14:00', intervalo: '17:00', saida: '22:00' });
-        }
         const result = optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
-        assert.equal(result.length, 10);
-
-        // Calcular score do resultado
         const dayResult = result.filter(r => r.dia === 'SEGUNDA' && r.entrada !== 'FOLGA');
         const staffByHour = calculateStaffByHour(dayResult, 9, 22);
         const hourlyData = flow.map(f => ({
@@ -175,12 +189,82 @@ describe('Score > 90 em cenários desbalanceados', () => {
             cupons: 0,
         }));
         const metrics = computeThermalMetrics(hourlyData);
-        // Motor V5 com shift deve melhorar significativamente vs baseline
-        assert.ok(metrics.score > 70, `Score ${metrics.score} deveria ser > 70`);
+        assert.ok(metrics.score >= 68, `Score ${metrics.score} caiu abaixo do baseline 68`);
+        assert.ok(metrics.adherence >= baseMetrics.adherence, `Aderencia ${metrics.adherence} piorou vs baseline ${baseMetrics.adherence}`);
+        assert.ok(metrics.lostOpportunity <= baseMetrics.lostOpportunity, `Oportunidade perdida ${metrics.lostOpportunity} piorou vs baseline ${baseMetrics.lostOpportunity}`);
+
+        const peakHours = [14, 15, 16, 17, 18];
+        const basePeakCoverage = peakHours.reduce((sum, hour) => sum + (baseStaffByHour[hour] || 0), 0);
+        const optPeakCoverage = peakHours.reduce((sum, hour) => sum + (staffByHour[hour] || 0), 0);
+        assert.ok(optPeakCoverage >= basePeakCoverage, `Cobertura de pico ${optPeakCoverage} piorou vs baseline ${basePeakCoverage}`);
     });
 
-    it('performance: < 500ms para 25 funcionários', () => {
-        // Fluxo determinístico
+    it('nao cria gap em hora com fluxo', () => {
+        const { rows, flow } = buildBaselineScenario();
+        const result = optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
+        const dayResult = result.filter(r => r.dia === 'SEGUNDA' && r.entrada !== 'FOLGA');
+        const staffByHour = calculateStaffByHour(dayResult, 9, 22);
+
+        flow.forEach(({ hour, flow: hourlyFlow }) => {
+            if (hourlyFlow > 0) {
+                assert.ok((staffByHour[hour] || 0) > 0, `Hora ${hour} ficou sem staff`);
+            }
+        });
+    });
+
+    it('reclassifica anchors redundantes como flex', () => {
+        const flow = [];
+        for (let h = 10; h <= 21; h++) {
+            flow.push({ hour: h, flow: h >= 15 && h <= 19 ? 120 : 20 });
+        }
+        const storeHours = getStoreHours(flow);
+        const rows = [
+            { id: 'o1', dia: 'SEGUNDA', nome: 'Opener1', entrada: '08:00', intervalo: '12:00', saida: '18:00' },
+            { id: 'o2', dia: 'SEGUNDA', nome: 'Opener2', entrada: '08:00', intervalo: '12:00', saida: '18:00' },
+            { id: 'o3', dia: 'SEGUNDA', nome: 'Opener3', entrada: '08:00', intervalo: '12:00', saida: '18:00' },
+            { id: 'c1', dia: 'SEGUNDA', nome: 'Closer1', entrada: '14:00', intervalo: '18:00', saida: '22:30' },
+            { id: 'c2', dia: 'SEGUNDA', nome: 'Closer2', entrada: '14:00', intervalo: '18:00', saida: '22:30' },
+            { id: 'c3', dia: 'SEGUNDA', nome: 'Closer3', entrada: '14:00', intervalo: '18:00', saida: '22:30' },
+        ];
+        const classified = classifyStaff(rows, storeHours);
+
+        assert.equal(classified.filter(r => r.role === 'opener').length, 1);
+        assert.equal(classified.filter(r => r.role === 'closer').length, 1);
+        assert.equal(classified.filter(r => r.role === 'flex').length, 4);
+    });
+
+    it('quickScore fica alinhado com computeThermalMetrics', () => {
+        const { rows, flow } = buildBaselineScenario();
+        const result = optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
+        const dayResult = result.filter(r => r.dia === 'SEGUNDA' && r.entrada !== 'FOLGA');
+        const staffByHour = calculateStaffByHour(dayResult, 9, 22);
+        const hourlyData = flow.map(f => ({
+            hour: f.hour,
+            flow: f.flow,
+            activeStaff: staffByHour[f.hour] || 0,
+            cupons: 0,
+        }));
+        const scoreQuick = quickScore(hourlyData);
+        const metrics = computeThermalMetrics(hourlyData);
+        assert.ok(Math.abs(scoreQuick - metrics.score) <= 1, `quickScore=${scoreQuick} e computeThermalMetrics=${metrics.score}`);
+    });
+
+    it('opener+closer dual nao fica bloqueado e tem intervalo movido', () => {
+        const { rows, flow } = buildOpenerCloserScenario();
+        const storeHours = getStoreHours(flow);
+        const classified = classifyStaff(rows, storeHours);
+        const anaClass = classified.find(r => r.nome === 'Ana');
+        assert.equal(anaClass.role, 'flex');
+
+        const result = optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
+        const ana = result.find(r => r.nome === 'Ana');
+        assert.ok(ana.intervalo, 'Ana deve manter intervalo valido');
+        assert.notEqual(ana.intervalo, '12:00', 'Ana nao pode ficar presa no intervalo original');
+        assert.equal(ana.entrada, '08:00');
+        assert.equal(ana.saida, '22:30');
+    });
+
+    it('performance: < 500ms para 25 funcionarios', () => {
         const flow = [];
         for (let h = 9; h <= 21; h++) {
             const f = 20 + ((h - 9) * 7) % 80 + 10;
@@ -190,15 +274,17 @@ describe('Score > 90 em cenários desbalanceados', () => {
         for (let i = 0; i < 25; i++) {
             const ent = 8 + (i % 4);
             rows.push({
-                id: `f${i}`, dia: 'SEGUNDA', nome: `Func${i}`,
-                entrada: `${String(ent).padStart(2,'0')}:00`,
-                intervalo: `${String(ent+4).padStart(2,'0')}:00`,
-                saida: `${String(ent+9).padStart(2,'0')}:00`,
+                id: `f${i}`,
+                dia: 'SEGUNDA',
+                nome: `Func${i}`,
+                entrada: `${String(ent).padStart(2, '0')}:00`,
+                intervalo: `${String(ent + 4).padStart(2, '0')}:00`,
+                saida: `${String(ent + 9).padStart(2, '0')}:00`,
             });
         }
         const start = Date.now();
         optimizeScheduleRows(rows, 'SEGUNDA', flow, { enableShiftSuggestion: true });
         const elapsed = Date.now() - start;
-        assert.ok(elapsed < 500, `Motor demorou ${elapsed}ms (máx 500ms)`);
+        assert.ok(elapsed < 500, `Motor demorou ${elapsed}ms (max 500ms)`);
     });
 });

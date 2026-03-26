@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { calculateRevenueImpact } from '../lib/revenueEngine';
 import { calculateStaffByHour } from '../lib/staffUtils';
 import { parseFluxValue, parseNumber } from '../lib/parsers';
+import { isSameDayName, normalizeDayName } from '../lib/dayUtils';
 
 export const useRevenueCalculation = (
     staffRows,
@@ -19,14 +20,15 @@ export const useRevenueCalculation = (
         const baselineRows = originalStaffRowsRef?.current || staffRows;
         if (!baselineRows?.length) return null;
 
-        const excelDayName = diasSemana?.[selectedDay];
+        const normalizedSelectedDay = normalizeDayName(selectedDay);
+        const excelDayName = diasSemana?.[normalizedSelectedDay] || diasSemana?.[selectedDay];
         if (!excelDayName) return null;
 
         const currentScheduleByHourMap = calculateStaffByHour(
-            staffRows.filter((row) => row.dia === selectedDay),
+            staffRows.filter((row) => isSameDayName(row.dia, normalizedSelectedDay)),
         );
         const baseScheduleByHourMap = calculateStaffByHour(
-            baselineRows.filter((row) => row.dia === selectedDay),
+            baselineRows.filter((row) => isSameDayName(row.dia, normalizedSelectedDay)),
         );
 
         const currentScheduleByHour = Object.entries(currentScheduleByHourMap).map(([hour, quantity]) => ({
@@ -53,7 +55,7 @@ export const useRevenueCalculation = (
             .filter(
                 (row) =>
                     !row.Dia_Semana ||
-                    row.Dia_Semana.toUpperCase() === selectedDay ||
+                    normalizeDayName(row.Dia_Semana) === normalizedSelectedDay ||
                     row.Dia_Semana === excelDayName,
             )
             .map((row) => ({

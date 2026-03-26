@@ -1,0 +1,33 @@
+# Configuração do projeto local para o Supabase CLI
+# Documentação: https://supabase.com/docs/guides/cli/config
+
+[api]
+# Porta local do API server (PostgREST)
+port = 54321
+
+[db]
+# Porta local do PostgreSQL
+port = 54322
+# Versão do PostgreSQL (deve corresponder ao projeto remoto)
+major_version = 15
+
+[studio]
+# Porta do Supabase Studio local
+port = 54323
+
+[inbucket]
+# Porta do serviço de email fake (para testes de auth)
+port = 54324
+
+[storage]
+# Tamanho máximo de upload via Storage
+file_size_limit = "50MiB"
+
+[auth]
+# URL do site (usado no magic link / redirect)
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+
+[auth.email]
+# Confirmar email ao registrar
+enable_confirmations = false

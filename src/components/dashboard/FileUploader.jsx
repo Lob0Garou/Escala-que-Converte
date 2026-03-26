@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Upload } from 'lucide-react';
 
@@ -29,12 +28,12 @@ export const FileUploader = ({ label, onUpload, required, accept, data, errorSta
         <div
             className={`
                 relative group overflow-hidden
-                bg-[var(--bg-card)] backdrop-blur-3xl border rounded-[var(--radius-premium)] 
-                shadow-[var(--shadow-premium)] p-8 transition-all duration-500 
+                bg-bg-surface border-2 border-dashed rounded-xl 
+                p-8 transition-colors duration-200 
                 flex flex-col items-center justify-center h-[240px] w-full
                 ${dragActive
-                    ? 'border-[var(--c-red)] bg-[var(--c-red-muted)] scale-[1.02]'
-                    : 'border-[var(--glass-border)] hover:border-white/20'
+                    ? 'border-accent-main bg-accent-light'
+                    : 'border-border hover:border-text-muted hover:bg-bg-elevated'
                 }
             `}
             onDragEnter={handleDrag}
@@ -42,40 +41,36 @@ export const FileUploader = ({ label, onUpload, required, accept, data, errorSta
             onDragOver={handleDrag}
             onDrop={handleDrop}
         >
-            {/* Animated background glow */}
-            <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-gradient-to-br from-[var(--c-red)] to-transparent pointer-events-none`} />
-
             <label className="relative z-10 block cursor-pointer text-center w-full">
                 <div className={`
-                    w-16 h-16 rounded-2xl bg-white/5 mx-auto mb-6 flex items-center justify-center 
-                    group-hover:scale-110 group-hover:bg-white/10 transition-all duration-500
-                    ${dragActive ? 'bg-[var(--c-red)]/20' : ''}
+                    w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center transition-colors duration-200
+                    ${dragActive ? 'bg-accent-main/10 text-accent-main' : 'bg-bg-elevated text-text-muted group-hover:bg-bg-overlay'}
                 `}>
-                    <Upload className={`w-8 h-8 transition-colors duration-500 ${dragActive ? 'text-[var(--c-red)]' : 'text-[var(--text-muted)]'}`} />
+                    <Upload className="w-5 h-5" />
                 </div>
 
-                <h3 className="text-base font-black text-[var(--text-vibrant)] tracking-[0.1em] mb-2 uppercase">
+                <h3 className="text-sm font-semibold text-text-primary mb-1 uppercase tracking-wide">
                     {label}
                 </h3>
 
                 {required && (
-                    <span className="text-[10px] text-[var(--c-red)] font-black uppercase tracking-[0.2em] mb-4 block">
+                    <span className="text-[10px] text-red-700 font-bold uppercase tracking-[0.1em] mb-4 block">
                         Obrigatório
                     </span>
                 )}
 
                 {data && !errorState ? (
-                    <div className="mt-4 bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest inline-flex items-center gap-2 border border-emerald-500/20 animate-in zoom-in-95 duration-300">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <div className="mt-4 bg-green-50 text-green-700 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide inline-flex items-center gap-1.5 border border-green-200">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                         Arquivo Pronto
                     </div>
                 ) : errorState ? (
-                    <div className="mt-4 bg-rose-500/10 text-rose-400 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border border-rose-500/20">
+                    <div className="mt-4 bg-red-50 text-red-700 px-3 py-1.5 rounded-md text-xs font-medium border border-red-200">
                         {errorState}
                     </div>
                 ) : (
-                    <p className="text-[var(--text-muted)] text-sm mt-3 font-medium">
-                        Arraste ou clique <span className="text-[var(--text-secondary)] font-bold">{accept}</span>
+                    <p className="text-text-secondary text-xs mt-2 font-medium">
+                        Arraste ou clique para enviar <span className="font-semibold">{accept}</span>
                     </p>
                 )}
 

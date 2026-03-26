@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { optimizeAllDays } from '../lib/thermalBalance_v5';
 import { parseFluxValue } from '../lib/parsers';
+import { normalizeDayName } from '../lib/dayUtils';
 
 export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
     const [staffRows, setStaffRows] = useState([]);
@@ -11,14 +12,16 @@ export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
     const applyProcessedRows = useCallback((processedRows, currentSelectedDay) => {
         originalStaffRowsRef.current = JSON.parse(JSON.stringify(processedRows));
 
-        const uniqueDays = [...new Set(processedRows.map((row) => row.dia).filter(Boolean))];
+        const uniqueDays = [...new Set(processedRows.map((row) => normalizeDayName(row.dia)).filter(Boolean))];
         setStaffRows((prev) => {
             if (uniqueDays.length > 1) {
-                return processedRows.filter((row) => row.dia);
+                return processedRows
+                    .filter((row) => row.dia)
+                    .map((row) => ({ ...row, dia: normalizeDayName(row.dia) }));
             }
 
-            const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : currentSelectedDay;
-            const otherDays = prev.filter((row) => row.dia !== targetDay);
+            const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : normalizeDayName(currentSelectedDay);
+            const otherDays = prev.filter((row) => normalizeDayName(row.dia) !== targetDay);
             const newRows = processedRows.map((row) => ({ ...row, dia: targetDay }));
             return [...otherDays, ...newRows];
         });
@@ -32,7 +35,7 @@ export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
                 ...prev,
                 {
                     id,
-                    dia: selectedDay,
+                    dia: normalizeDayName(selectedDay),
                     nome: '',
                     entrada: '',
                     intervalo: '',

@@ -1,34 +1,12 @@
-export const diasSemana = {
-  SEGUNDA: "1. Seg",
-  TERÇA: "2. Ter",
-  QUARTA: "3. Qua",
-  QUINTA: "4. Qui",
-  SEXTA: "5. Sex",
-  SÁBADO: "6. Sab",
-  DOMINGO: "7. Dom",
-};
+import { ORDERED_WEEK_DAYS, SHORT_DAY_TO_FULL, WEEK_DAY_TO_EXCEL } from './dayUtils';
 
-export const diasAbreviados = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"];
+export const diasSemana = WEEK_DAY_TO_EXCEL;
 
-export const fullDayNames = {
-  SEG: "SEGUNDA",
-  TER: "TERÇA",
-  QUA: "QUARTA",
-  QUI: "QUINTA",
-  SEX: "SEXTA",
-  SAB: "SÁBADO",
-  DOM: "DOMINGO",
-};
+export const diasAbreviados = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'];
 
-export const allDays = [
-  "SEGUNDA",
-  "TERÇA",
-  "QUARTA",
-  "QUINTA",
-  "SEXTA",
-  "SÁBADO",
-  "DOMINGO",
-];
+export const fullDayNames = SHORT_DAY_TO_FULL;
+
+export const allDays = ORDERED_WEEK_DAYS;
 
 export const MIN_FLUXO = 10;
 export const STABLE_FLUXO_PCT = 0.15;

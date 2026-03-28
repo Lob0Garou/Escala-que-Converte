@@ -3,27 +3,34 @@ import { optimizeAllDays } from '../lib/thermalBalance_v5';
 import { parseFluxValue } from '../lib/parsers';
 import { normalizeDayName } from '../lib/dayUtils';
 
+const cloneRows = (rows = []) => rows.map((row) => ({ ...row }));
+
 export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
     const [staffRows, setStaffRows] = useState([]);
     const [isOptimized, setIsOptimized] = useState(false);
     const originalStaffRowsRef = useRef(null);
+    const editableStaffRowsRef = useRef(null);
     const optimizedStaffRowsRef = useRef(null);
 
     const applyProcessedRows = useCallback((processedRows, currentSelectedDay) => {
-        originalStaffRowsRef.current = JSON.parse(JSON.stringify(processedRows));
-
         const uniqueDays = [...new Set(processedRows.map((row) => normalizeDayName(row.dia)).filter(Boolean))];
         setStaffRows((prev) => {
+            let nextRows;
             if (uniqueDays.length > 1) {
-                return processedRows
+                nextRows = processedRows
                     .filter((row) => row.dia)
                     .map((row) => ({ ...row, dia: normalizeDayName(row.dia) }));
+            } else {
+                const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : normalizeDayName(currentSelectedDay);
+                const otherDays = prev.filter((row) => normalizeDayName(row.dia) !== targetDay);
+                const newRows = processedRows.map((row) => ({ ...row, dia: targetDay }));
+                nextRows = [...otherDays, ...newRows];
             }
 
-            const targetDay = uniqueDays.length === 1 ? uniqueDays[0] : normalizeDayName(currentSelectedDay);
-            const otherDays = prev.filter((row) => normalizeDayName(row.dia) !== targetDay);
-            const newRows = processedRows.map((row) => ({ ...row, dia: targetDay }));
-            return [...otherDays, ...newRows];
+            originalStaffRowsRef.current = cloneRows(nextRows);
+            editableStaffRowsRef.current = cloneRows(nextRows);
+            optimizedStaffRowsRef.current = null;
+            return nextRows;
         });
         setIsOptimized(false);
     }, []);
@@ -31,7 +38,7 @@ export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
     const addStaffRow = useCallback(() => {
         setStaffRows((prev) => {
             const id = `manual-${Date.now()}`;
-            return [
+            const nextRows = [
                 ...prev,
                 {
                     id,
@@ -43,21 +50,46 @@ export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
                     saidaDiaSeguinte: false,
                 },
             ];
+            editableStaffRowsRef.current = cloneRows(nextRows);
+            optimizedStaffRowsRef.current = null;
+            return nextRows;
         });
+        setIsOptimized(false);
     }, [selectedDay]);
 
     const updateStaffRow = useCallback((id, field, value) => {
-        setStaffRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+        setStaffRows((prev) => {
+            const nextRows = prev.map((row) => (row.id === id ? { ...row, [field]: value } : row));
+            editableStaffRowsRef.current = cloneRows(nextRows);
+            optimizedStaffRowsRef.current = null;
+            return nextRows;
+        });
+        setIsOptimized(false);
     }, []);
 
     const removeStaffRow = useCallback((id) => {
-        setStaffRows((prev) => prev.filter((row) => row.id !== id));
+        setStaffRows((prev) => {
+            const nextRows = prev.filter((row) => row.id !== id);
+            editableStaffRowsRef.current = cloneRows(nextRows);
+            optimizedStaffRowsRef.current = null;
+            return nextRows;
+        });
+        setIsOptimized(false);
     }, []);
 
     const optimizeSchedule = useCallback(() => {
-        if (!originalStaffRowsRef.current) {
-            originalStaffRowsRef.current = [...staffRows];
+        if (optimizedStaffRowsRef.current?.length) {
+            setStaffRows(cloneRows(optimizedStaffRowsRef.current));
+            setIsOptimized(true);
+            return;
         }
+
+        const sourceRows = cloneRows(
+            Array.isArray(editableStaffRowsRef.current) && editableStaffRowsRef.current.length > 0
+                ? editableStaffRowsRef.current
+                : staffRows,
+        );
+        if (!sourceRows.length) return;
 
         const flowMap = {};
         if (cuponsData && cuponsData.length > 0) {
@@ -86,15 +118,15 @@ export const useStaffData = (selectedDay, cuponsData, diasSemana) => {
             });
         }
 
-        const optimized = optimizeAllDays(staffRows, flowMap, { enableShiftSuggestion: true });
-        optimizedStaffRowsRef.current = optimized;
-        setStaffRows(optimized);
+        const optimized = optimizeAllDays(sourceRows, flowMap, { enableShiftSuggestion: true });
+        optimizedStaffRowsRef.current = cloneRows(optimized);
+        setStaffRows(cloneRows(optimized));
         setIsOptimized(true);
     }, [cuponsData, diasSemana, staffRows]);
 
     const toggleOptimized = useCallback(() => {
-        if (originalStaffRowsRef.current) {
-            setStaffRows([...originalStaffRowsRef.current]);
+        if (editableStaffRowsRef.current) {
+            setStaffRows(cloneRows(editableStaffRowsRef.current));
             setIsOptimized(false);
         }
     }, []);

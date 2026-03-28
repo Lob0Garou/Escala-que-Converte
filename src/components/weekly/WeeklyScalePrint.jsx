@@ -1,11 +1,24 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useMemo } from 'react';
 import RemoveBgImage from '../RemoveBgImage';
 import CENTAURO_BRAND from '../../lib/centauro_brand_assets';
 import PrintDayCard from './PrintDayCard';
 import { ORDERED_WEEK_DAYS } from '../../lib/dayUtils';
+import { buildWeeklyDisplaySummary } from '../../lib/weeklyScore';
 
-export const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
+const fmtScore = (value) => (value === null || value === undefined ? 'N/A' : Number(value).toFixed(1));
+const ScoreChip = ({ label, value, tone, formatter = fmtScore }) => (
+  <div className={`rounded-2xl border px-4 py-3 ${tone}`}>
+    <p className="text-[9px] font-black uppercase tracking-[0.22em] opacity-70">{label}</p>
+    <p className="mt-2 text-2xl font-black tracking-tight">{formatter(value)}</p>
+  </div>
+);
+
+export const WeeklyScalePrint = forwardRef(({ staffRows, theme, weeklyScoreSummary }, ref) => {
   const isDark = theme === 'dark';
+  const displaySummary = useMemo(
+    () => buildWeeklyDisplaySummary({ weeklyScoreSummary, staffRows }),
+    [staffRows, weeklyScoreSummary],
+  );
 
   const containerStyle = isDark ? 'bg-[#0a0c10] text-white' : 'bg-white text-slate-900';
   const bgImage = isDark
@@ -14,7 +27,15 @@ export const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
   const badgeStyle = isDark
     ? 'text-[#E30613] border-[#E30613]/20 bg-[#E30613]/5'
     : 'text-slate-800 border-slate-300 bg-slate-100';
-
+  const scoreToneBefore = isDark
+    ? 'border-white/10 bg-white/[0.035] text-slate-100'
+    : 'border-slate-200 bg-slate-50 text-slate-900';
+  const scoreToneAfter = isDark
+    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
+    : 'border-emerald-200 bg-emerald-50 text-emerald-900';
+  const scoreToneDelta = isDark
+    ? 'border-[#E30613]/20 bg-[#E30613]/8 text-[#ffd7da]'
+    : 'border-rose-200 bg-rose-50 text-rose-900';
   return (
     <div
       ref={ref}
@@ -42,9 +63,27 @@ export const WeeklyScalePrint = forwardRef(({ staffRows, theme }, ref) => {
         </div>
       </div>
 
+      <div className="grid grid-cols-[1fr_1fr_0.8fr_auto] gap-4 px-4">
+        <ScoreChip label="Score atual" value={displaySummary?.visibleWeeklyScoreAvg} tone={scoreToneBefore} />
+        <ScoreChip label="Score base" value={displaySummary?.baselineWeeklyScoreAvg} tone={scoreToneAfter} />
+        <ScoreChip label="Evolucao" value={displaySummary?.visibleVsBaselineGap} tone={scoreToneDelta} />
+        <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-white/10 bg-white/[0.03] text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+          <p className="text-[9px] font-black uppercase tracking-[0.22em] opacity-70">Dias considerados</p>
+          <p className="mt-2 text-2xl font-black tracking-tight">
+            {displaySummary?.daysCountConsidered || 0}/{displaySummary?.totalDays || ORDERED_WEEK_DAYS.length}
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-7 items-start gap-4">
         {ORDERED_WEEK_DAYS.map((dia) => (
-          <PrintDayCard key={dia} dia={dia} staffRows={staffRows} theme={theme} />
+          <PrintDayCard
+            key={dia}
+            dia={dia}
+            staffRows={staffRows}
+            theme={theme}
+            dayScoreSummary={displaySummary?.days?.find((day) => day.day === dia) || null}
+          />
         ))}
       </div>
     </div>

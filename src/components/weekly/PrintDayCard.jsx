@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { isSameDayName } from '../../lib/dayUtils';
 
+const formatScore = (value) => (Number.isFinite(value) ? Number(value).toFixed(1) : '--');
+
 const toMinutes = (time) => {
   if (!time || typeof time !== 'string' || !time.includes(':')) return 0;
   const [hour, minute] = time.split(':');
@@ -10,7 +12,7 @@ const toMinutes = (time) => {
   return hh * 60 + mm;
 };
 
-export const PrintDayCard = ({ dia, staffRows, theme }) => {
+export const PrintDayCard = ({ dia, staffRows, theme, dayScoreSummary = null }) => {
   const isDark = theme === 'dark';
 
   const colabsDoDia = useMemo(() => {
@@ -44,7 +46,19 @@ export const PrintDayCard = ({ dia, staffRows, theme }) => {
   return (
     <div className={`${cardBg} flex h-full flex-col overflow-hidden rounded-xl border shadow-xl`}>
       <div className={`${headerBg} flex items-center justify-between border-b px-4 py-2 bg-opacity-50`}>
-        <span className={`${titleColor} text-xs font-black uppercase tracking-widest`}>{dia}</span>
+        <div className="min-w-0">
+          <span className={`${titleColor} text-xs font-black uppercase tracking-widest`}>{dia}</span>
+          <div className="mt-1 flex flex-wrap gap-1">
+            <span className={`rounded px-2 py-0.5 text-[9px] font-bold ${countBadge}`}>
+              Score {formatScore(dayScoreSummary?.currentScore)}
+            </span>
+            {Number.isFinite(dayScoreSummary?.baselineScore) && (
+              <span className={`rounded px-2 py-0.5 text-[9px] font-bold ${countBadge}`}>
+                Base {formatScore(dayScoreSummary?.baselineScore)}
+              </span>
+            )}
+          </div>
+        </div>
         <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${countBadge}`}>
           {colabsDoDia.length}
         </span>

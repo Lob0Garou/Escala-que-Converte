@@ -9,7 +9,7 @@ port = 54321
 # Porta local do PostgreSQL
 port = 54322
 # Versão do PostgreSQL (deve corresponder ao projeto remoto)
-major_version = 15
+major_version = 17
 
 [studio]
 # Porta do Supabase Studio local

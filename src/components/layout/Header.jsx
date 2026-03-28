@@ -1,5 +1,5 @@
 import React from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, Moon, ShieldCheck, Sun } from 'lucide-react';
 import RemoveBgImage from '../RemoveBgImage';
 import CENTAURO_BRAND from '../../lib/centauro_brand_assets';
 import StoreSelector from '../../features/store/StoreSelector';
@@ -15,6 +15,8 @@ export const Header = ({
   onSignOut,
   theme: themeProp,
   onToggleTheme,
+  onOpenAdmin,
+  isAdminView = false,
 }) => {
   const hasAuth = Boolean(user);
   const themeState = useTheme();
@@ -72,6 +74,17 @@ export const Header = ({
             <span className="h-2 w-2 rounded-full bg-green-500" />
             <span className="tabular-nums">{todayLabel}</span>
           </div>
+
+          {typeof onOpenAdmin === 'function' && (
+            <button
+              onClick={onOpenAdmin}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-border/70 bg-bg-elevated px-3 text-sm font-medium text-text-primary transition-colors hover:bg-bg-overlay/40"
+              title={isAdminView ? 'Voltar ao dashboard' : 'Abrir sessao administrativa'}
+            >
+              {isAdminView ? <LayoutDashboard size={16} /> : <ShieldCheck size={16} />}
+              <span className="hidden sm:inline">{isAdminView ? 'Dashboard' : 'Admin'}</span>
+            </button>
+          )}
 
           {hasAuth && (
             <div className="min-w-0 w-[168px] sm:w-[208px] xl:w-[232px]">

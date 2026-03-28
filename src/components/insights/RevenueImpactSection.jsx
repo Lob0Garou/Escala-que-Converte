@@ -59,6 +59,32 @@ const RevenueCard = ({ title, value, subtext, icon, trend, trendValue, tone }) =
 export const RevenueImpactSection = ({ metrics, config }) => {
   if (!metrics) return null;
 
+  const revenueRecovered = Number(metrics.deltaRevenue || 0);
+  const additionalCoupons = Number(metrics.deltaCoupons || 0);
+  const conversionDelta = Number(metrics.deltaConversionPP || 0);
+  const criticalHoursBefore = Number(metrics.criticalHoursBefore || 0);
+  const criticalHoursAfter = Number(metrics.criticalHoursAfter || 0);
+  const hasImpact =
+    Math.abs(revenueRecovered) > 0.01 ||
+    Math.abs(additionalCoupons) > 0.01 ||
+    Math.abs(conversionDelta) > 0.01;
+
+  if (!hasImpact) {
+    return (
+      <section className="panel-surface w-full p-5 sm:p-6">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h3 className="flex items-center gap-2 border-l-4 border-green-brand pl-3 text-sm font-semibold uppercase tracking-wide text-text-primary">
+            <Banknote className="h-4 w-4 text-green-brand" />
+            Impacto Financeiro da Escala
+          </h3>
+        </div>
+        <div className="rounded-2xl border border-border/70 bg-bg-surface/85 px-4 py-5 text-sm text-text-secondary">
+          Sem ganho potencial relevante no estado atual da escala. Ajuste a cobertura ou otimize a semana para gerar comparativo.
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel-surface w-full p-5 sm:p-6">
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -76,39 +102,39 @@ export const RevenueImpactSection = ({ metrics, config }) => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
         <RevenueCard
           title="Receita Recuperada"
-          value={metrics.totalRevenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          value={revenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           subtext="Ganho estimado em horas criticas"
           icon={Banknote}
           tone="emerald"
-          trend={metrics.totalRevenueRecovered >= 0 ? 'up' : 'down'}
+          trend={revenueRecovered >= 0 ? 'up' : 'down'}
           trendValue="Projetado"
         />
 
         <RevenueCard
           title="Cupons Adicionais"
-          value={`+${metrics.totalAdditionalCoupons.toFixed(1)}`}
+          value={`${additionalCoupons > 0 ? '+' : ''}${additionalCoupons.toFixed(1)}`}
           subtext="Clientes adicionais atendidos"
           icon={ShoppingBag}
           tone="blue"
-          trend="up"
+          trend={additionalCoupons >= 0 ? 'up' : 'down'}
           trendValue="Volume"
         />
 
         <RevenueCard
           title="Ganho do Dia"
-          value={`+${metrics.totalRevenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
-          subtext="Neste cenario de escala"
+          value={`${revenueRecovered > 0 ? '+' : ''}${revenueRecovered.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+          subtext={`Horas criticas ${criticalHoursBefore} -> ${criticalHoursAfter}`}
           icon={Coins}
           tone="red"
         />
 
         <RevenueCard
           title="Var. Conversao"
-          value={`${metrics.avgWeightedConversionDelta > 0 ? '+' : ''}${metrics.avgWeightedConversionDelta.toFixed(2)} pp`}
+          value={`${conversionDelta > 0 ? '+' : ''}${conversionDelta.toFixed(2)} pp`}
           subtext="Impacto na conversao ponderada"
           icon={Percent}
           tone="violet"
-          trend={metrics.avgWeightedConversionDelta >= 0 ? 'up' : 'down'}
+          trend={conversionDelta >= 0 ? 'up' : 'down'}
           trendValue="Eficiencia"
         />
       </div>

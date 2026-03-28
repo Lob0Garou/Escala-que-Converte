@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase';
-import { FLAGS } from '../lib/featureFlags';
 import { normalizeDayName } from '../lib/dayUtils';
 
 const DAY_TO_DB = {
@@ -96,10 +95,6 @@ export const saveShiftsBatch = async (scheduleWeekId, storeId, staffRows) => {
     console.warn('[sync] saveShiftsBatch ignorado: sem weekId/storeId', { scheduleWeekId, storeId });
     return;
   }
-  if (!FLAGS.PERSIST_TO_SUPABASE) {
-    console.warn('[sync] PERSIST_TO_SUPABASE=false');
-    return;
-  }
 
   const validRows = staffRows.filter((row) => row.dia);
   if (validRows.length === 0) {
@@ -128,7 +123,6 @@ export const updateWeekSnapshot = async (scheduleWeekId, storeId, { cuponsData, 
     console.warn('[sync] updateWeekSnapshot ignorado: sem weekId/storeId');
     return;
   }
-  if (!FLAGS.PERSIST_TO_SUPABASE) return;
 
   const label = cuponsData ? `cupons(${cuponsData.length})` : `sales(${salesData?.length})`;
   console.log('[sync] updateWeekSnapshot ->', label);
@@ -171,10 +165,6 @@ export const loadWeekSnapshot = async (scheduleWeekId) => {
 export const validateScheduleWeek = async (scheduleWeekId, storeId, staffRows) => {
   if (!supabase || !scheduleWeekId || !storeId) {
     console.warn('[sync] validateScheduleWeek ignorado: sem weekId/storeId');
-    return;
-  }
-  if (!FLAGS.PERSIST_TO_SUPABASE) {
-    console.warn('[sync] PERSIST_TO_SUPABASE=false');
     return;
   }
 

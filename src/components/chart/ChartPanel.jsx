@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Save } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import {
   Area,
   Bar,
@@ -22,10 +22,7 @@ export const ChartPanel = ({
   isOptimized,
   onOptimize,
   onToggleOptimized,
-  onValidate,
-  isValidating,
   theme,
-  validatedAt,
 }) => {
   const isDark = theme ? theme === 'dark' : typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const gridColor = isDark ? '#3F3F46' : '#E4E4E7';
@@ -69,26 +66,6 @@ export const ChartPanel = ({
             {isOptimized ? 'Escala Otimizada' : 'Escala Original'}
           </button>
 
-          {onValidate && (
-            <button
-              onClick={onValidate}
-              disabled={isValidating}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-green-700/80 bg-green-600 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save className={`h-3.5 w-3.5 ${isValidating ? 'animate-pulse' : ''}`} />
-              {isValidating ? 'Validando...' : 'Validar Escala'}
-            </button>
-          )}
-          {validatedAt && (
-            <span className="text-xs text-text-secondary whitespace-nowrap">
-              Validado {new Date(validatedAt).toLocaleString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-          )}
         </div>
       </div>
 

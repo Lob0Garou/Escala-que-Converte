@@ -1,13 +1,14 @@
 import { useCallback, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { excelTimeToString } from '../lib/parsers';
+import { createUploadRecord } from '../services/activityService';
 
-export const useFileProcessing = (selectedDay, onEscalaProcessed) => {
+export const useFileProcessing = (selectedDay, onEscalaProcessed, trackingContext = {}) => {
     const [dragActive, setDragActive] = useState({ cupons: false, escala: false, vendas: false });
     const [cuponsData, setCuponsData] = useState([]);
     const [salesData, setSalesData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState({ cupons: null, escala: null, vendas: null });
+    const { userId = null, storeId = null } = trackingContext;
 
     const keysMatch = useCallback((obj, possibilities) => {
         const keys = Object.keys(obj).map((key) => key.toLowerCase());
@@ -19,6 +20,7 @@ export const useFileProcessing = (selectedDay, onEscalaProcessed) => {
         setError((prev) => ({ ...prev, [type]: null }));
 
         try {
+            const XLSX = await import('xlsx');
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data);
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -57,15 +59,31 @@ export const useFileProcessing = (selectedDay, onEscalaProcessed) => {
                     onEscalaProcessed(processedRows, selectedDay);
                 }
             }
+
+            void createUploadRecord({
+                userId,
+                storeId,
+                file,
+                type,
+                status: 'done',
+            });
         } catch (err) {
             setError((prev) => ({
                 ...prev,
                 [type]: `Erro: ${err.message || 'Falha desconhecida'}. Verifique o console (F12).`,
             }));
+
+            void createUploadRecord({
+                userId,
+                storeId,
+                file,
+                type,
+                status: 'error',
+            });
         } finally {
             setLoading(false);
         }
-    }, [keysMatch, onEscalaProcessed, selectedDay]);
+    }, [keysMatch, onEscalaProcessed, selectedDay, storeId, userId]);
 
     const handleFileUpload = useCallback(async (eventOrFile, type) => {
         const file = eventOrFile?.target?.files?.[0] || eventOrFile;

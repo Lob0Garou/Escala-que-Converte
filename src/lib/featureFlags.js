@@ -1,21 +1,19 @@
 /**
- * Feature Flags — Escala que Converte
+ * Feature Flags - Escala que Converte
  *
- * Padrão: todas as flags ON (true) se as vars não forem explicitamente 'false'.
- * Para desligar uma flag, defina a variável de ambiente como 'false' no .env:
- *   VITE_PERSIST_TO_SUPABASE=false
- *   VITE_REQUIRE_AUTH=false
- *   VITE_LOAD_FROM_DB=false
- *
- * Com todas as flags OFF, o app funciona 100% client-side como antes.
+ * Padrão:
+ * - `VITE_USE_CLOUD_API` é opt-in e só liga quando for exatamente 'true'
+ * - as flags legadas permanecem ON por padrão, a menos que sejam 'false'
  */
 
 export const FLAGS = {
+  /** Usa a API Node/TypeScript autenticada para ler/salvar dados da loja */
+  USE_CLOUD_API: import.meta.env.VITE_USE_CLOUD_API === 'true',
   /** Persiste shifts, traffic e sales no Supabase após parse local */
   PERSIST_TO_SUPABASE: import.meta.env.VITE_PERSIST_TO_SUPABASE !== 'false',
-  /** Exige autenticação — se false, pula login e vai direto ao dashboard */
+  /** Exige autenticação - se false, pula login e vai direto ao dashboard */
   REQUIRE_AUTH: import.meta.env.VITE_REQUIRE_AUTH !== 'false',
-  /** Carrega dados do DB no mount — se false, aguarda upload manual */
+  /** Carrega dados do DB no mount - se false, aguarda upload manual */
   LOAD_FROM_DB: import.meta.env.VITE_LOAD_FROM_DB !== 'false',
 };
 

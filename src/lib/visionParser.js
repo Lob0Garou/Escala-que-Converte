@@ -57,7 +57,7 @@ export function buildVisionPrompt() {
 
 REGRAS DE EXTRAÇÃO:
 1. Identificar: dia da semana, nome do colaborador, horário de entrada, horário de intervalo, horário de saída, folgas.
-2. O campo DIA deve ficar em MAIÚSCULO: SEGUNDA, TERÇA, QUARTA, QUINTA, SEXTA, SÁBADO, DOMINGO.
+2. O campo DIA deve ficar em MAIÚSCULO: SEGUNDA, TERCA/TERÇA, QUARTA, QUINTA, SEXTA, SABADO/SÁBADO, DOMINGO.
 3. O campo ATLETA deve conter apenas o nome do colaborador.
 4. Os horários devem estar no formato HH:MM (ex: 09:30, 14:20).
 5. Se for dia de folga: ENTRADA="FOLGA", INTER="", SAIDA="".

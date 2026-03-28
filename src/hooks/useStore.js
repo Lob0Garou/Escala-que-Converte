@@ -8,7 +8,7 @@ import { FLAGS } from '../lib/featureFlags';
  * Se REQUIRE_AUTH=false ou supabase=null, retorna stores=[] e activeStore=null
  * sem fazer nenhuma requisição.
  */
-export const useStore = (user) => {
+export const useStore = (user, preferredStoreId = null) => {
   const [stores, setStores]           = useState([]);
   const [activeStore, setActiveStore] = useState(null);
   const [isLoading, setIsLoading]     = useState(false);
@@ -48,11 +48,15 @@ export const useStore = (user) => {
 
         // Restaura a última loja selecionada do localStorage
         const lastStoreId = localStorage.getItem('eqc_active_store_id');
+        const preferredStore = preferredStoreId
+          ? storeList.find((s) => s.id === preferredStoreId)
+          : null;
+
         const lastStore = lastStoreId
           ? storeList.find((s) => s.id === lastStoreId)
           : null;
 
-        setActiveStore(lastStore || storeList[0] || null);
+        setActiveStore(preferredStore || lastStore || storeList[0] || null);
       } catch (err) {
         setStoreError(err.message);
       } finally {
@@ -61,7 +65,7 @@ export const useStore = (user) => {
     };
 
     loadStores();
-  }, [user]);
+  }, [preferredStoreId, user]);
 
   // Persiste a seleção de loja no localStorage
   const selectStore = useCallback((store) => {

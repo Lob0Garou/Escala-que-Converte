@@ -13,13 +13,6 @@ import {
 } from '../lib/thermalBalance_v5.js';
 import { calculateStaffByHour } from '../lib/staffUtils.js';
 
-const toSlot = (timeInput) => {
-    if (!timeInput || typeof timeInput !== 'string') return null;
-    const [hours, minutes] = timeInput.split(':').map(Number);
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-    return Math.floor((hours * 60 + minutes) / 15);
-};
-
 const buildBaselineScenario = () => {
     const flow = [];
     for (let h = 9; h <= 21; h++) {

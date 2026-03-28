@@ -7,6 +7,11 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores([
     'dist',
+    'server/dist',
+    '.claude',
+    '.claude/**',
+    '.agents',
+    '.agents/**',
     'src/lib/thermalBalance_v2.2.js',
     'src/lib/verifyRevenueEngine.js',
   ]),

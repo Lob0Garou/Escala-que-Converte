@@ -680,7 +680,6 @@ export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, 
 
     if (dayStaff.length === 0) return staffRows;
 
-    const storeHours = getStoreHours(thermalRowsByHour);
     const profile = detectProfile(dayStaff.length);
     const v5Config = V5_CONFIG[profile];
 
@@ -807,7 +806,7 @@ export function optimizeScheduleRows(staffRows, selectedDay, thermalRowsByHour, 
     });
 
     // Limpar campo 'role' temporário
-    return result.map(({ role, ...rest }) => rest);
+    return result.map(({ role: _role, ...rest }) => rest);
 }
 
 export function optimizeAllDays(staffRows, flowMap, config = {}) {

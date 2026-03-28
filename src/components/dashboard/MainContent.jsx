@@ -12,6 +12,7 @@ export const MainContent = ({
   dailyMetrics,
   thermalMetrics,
   staffRows,
+  weeklyScoreSummary,
   selectedDay,
   onTimeClick,
   isOptimized,
@@ -21,10 +22,7 @@ export const MainContent = ({
   revenueConfig,
   cuponsData,
   diasSemana,
-  onValidate,
-  isValidating,
   theme,
-  validatedAt,
 }) => {
   return (
     <div className="w-full space-y-6">
@@ -36,10 +34,7 @@ export const MainContent = ({
             isOptimized={isOptimized}
             onOptimize={onOptimize}
             onToggleOptimized={onToggleOptimized}
-            onValidate={onValidate}
-            isValidating={isValidating}
             theme={theme}
-            validatedAt={validatedAt}
           />
 
           {revenueMetrics && <RevenueImpactSection metrics={revenueMetrics} config={revenueConfig} />}
@@ -60,7 +55,12 @@ export const MainContent = ({
         </aside>
       </div>
 
-      <WeeklyScaleView staffRows={staffRows} onTimeClick={onTimeClick} theme={theme} />
+      <WeeklyScaleView
+        staffRows={staffRows}
+        onTimeClick={onTimeClick}
+        theme={theme}
+        weeklyScoreSummary={weeklyScoreSummary}
+      />
     </div>
   );
 };

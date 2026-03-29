@@ -23,6 +23,9 @@ export const MainContent = ({
   cuponsData,
   diasSemana,
   theme,
+  onAddStaffRow,
+  onRemoveStaffRow,
+  onUpdateStaffRow,
 }) => {
   return (
     <div className="w-full space-y-6">
@@ -45,7 +48,14 @@ export const MainContent = ({
         </section>
 
         <aside className="min-w-0 space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <DailyStaffList staffRows={staffRows} selectedDay={selectedDay} onTimeClick={onTimeClick} />
+          <DailyStaffList
+            staffRows={staffRows}
+            selectedDay={selectedDay}
+            onTimeClick={onTimeClick}
+            onAddStaffRow={onAddStaffRow}
+            onRemoveStaffRow={onRemoveStaffRow}
+            onUpdateStaffRow={onUpdateStaffRow}
+          />
           <StaffRanking
             staffRows={staffRows}
             cuponsData={cuponsData}

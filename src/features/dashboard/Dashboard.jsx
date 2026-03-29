@@ -19,6 +19,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { loadDashboardDraft, saveDashboardDraft } from '../../lib/dashboardDraft';
 import { WEEK_DAY_TO_EXCEL } from '../../lib/dayUtils';
 import { FLAGS } from '../../lib/featureFlags';
+import { applyWeeklyBaselineOverride } from '../../lib/weeklyScore';
 import dataRepository from '../../repositories';
 import optimizationService from '../../services/optimizationService';
 import { logActivity } from '../../services/activityService';
@@ -64,6 +65,7 @@ const Dashboard = ({
   const [validatedAt, setValidatedAt] = useState(null);
   const [isValidationStale, setIsValidationStale] = useState(false);
   const [loadedFromDb, setLoadedFromDb] = useState(false);
+  const [baselineScoreLock, setBaselineScoreLock] = useState(null);
 
   const [printTheme, setPrintTheme] = useState('dark');
   const [selectedDay, setSelectedDay] = useState('SEGUNDA');
@@ -161,6 +163,8 @@ const Dashboard = ({
     staffRows,
     isOptimized,
     originalStaffRowsRef,
+    addStaffRow,
+    removeStaffRow,
     updateStaffRow,
     optimizeSchedule,
     toggleOptimized,
@@ -186,7 +190,11 @@ const Dashboard = ({
           return;
         }
         resolvedWeekId = analysisData.scheduleWeekId;
+        const optimizationSnapshot = await optimizationService.getLatestOptimizationSnapshot(
+          analysisData.scheduleWeekId,
+        );
         setActiveWeekStart(analysisData.weekStart || draftData?.weekStart || null);
+        setBaselineScoreLock(optimizationSnapshot?.scoreBefore ?? null);
 
         const resolvedStaffRows =
           analysisData.staffRows.length > 0 ? analysisData.staffRows : draftData?.staffRows || [];
@@ -235,6 +243,7 @@ const Dashboard = ({
     setLoadedFromDb(false);
     setValidatedAt(null);
     setIsValidationStale(false);
+    setBaselineScoreLock(null);
     validationSignatureRef.current = null;
     originalStaffRowsRef.current = null;
     init();
@@ -317,14 +326,18 @@ const Dashboard = ({
     referenceDate: activeWeekStart,
     mirrorCurrentAsBaseline: true,
   });
+  const effectiveWeeklyScoreSummary = useMemo(
+    () => applyWeeklyBaselineOverride(weeklyScoreSummary, baselineScoreLock),
+    [baselineScoreLock, weeklyScoreSummary],
+  );
 
   useEffect(() => {
     if (!activeWeekId || !activeStore?.id) return;
     if (isLoadingFromDbRef.current) return;
     if (!cuponsData?.length || !staffRows?.length) return;
     if (
-      weeklyScoreSummary.targetWeeklyScoreAvg === null &&
-      weeklyScoreSummary.currentWeeklyScoreAvg === null
+      effectiveWeeklyScoreSummary.targetWeeklyScoreAvg === null &&
+      effectiveWeeklyScoreSummary.currentWeeklyScoreAvg === null
     ) {
       return;
     }
@@ -335,9 +348,10 @@ const Dashboard = ({
         .upsertOptimizationSnapshot({
           storeId: activeStore.id,
           scheduleWeekId: activeWeekId,
-          currentScore: weeklyScoreSummary.currentWeeklyScoreAvg,
-          targetScore: weeklyScoreSummary.targetWeeklyScoreAvg,
-          weeklyPotentialGainTotal: weeklyScoreSummary.weeklyPotentialGainTotal,
+          currentScore: effectiveWeeklyScoreSummary.currentWeeklyScoreAvg,
+          targetScore: effectiveWeeklyScoreSummary.targetWeeklyScoreAvg,
+          baselineScore: effectiveWeeklyScoreSummary.currentWeeklyScoreAvg,
+          weeklyPotentialGainTotal: effectiveWeeklyScoreSummary.weeklyPotentialGainTotal,
           revenueMetrics,
           staffRows,
         })
@@ -351,12 +365,12 @@ const Dashboard = ({
     activeStore?.id,
     activeWeekId,
     cuponsData,
+    effectiveWeeklyScoreSummary.currentWeeklyScoreAvg,
+    effectiveWeeklyScoreSummary.targetWeeklyScoreAvg,
+    effectiveWeeklyScoreSummary.weeklyPotentialGainTotal,
     revenueMetrics,
     salesData,
     staffRows,
-    weeklyScoreSummary.currentWeeklyScoreAvg,
-    weeklyScoreSummary.targetWeeklyScoreAvg,
-    weeklyScoreSummary.weeklyPotentialGainTotal,
   ]);
 
   useEffect(() => {
@@ -513,7 +527,7 @@ const Dashboard = ({
                   dailyMetrics={dailyMetrics}
                   thermalMetrics={thermalMetrics}
                   staffRows={staffRows}
-                  weeklyScoreSummary={weeklyScoreSummary}
+                  weeklyScoreSummary={effectiveWeeklyScoreSummary}
                   selectedDay={selectedDay}
                   onTimeClick={openTimePicker}
                   isOptimized={isOptimized}
@@ -524,6 +538,9 @@ const Dashboard = ({
                   cuponsData={cuponsData}
                   diasSemana={diasSemana}
                   theme={theme}
+                  onAddStaffRow={addStaffRow}
+                  onRemoveStaffRow={removeStaffRow}
+                  onUpdateStaffRow={updateStaffRow}
                 />
               </div>
             </main>
@@ -560,7 +577,7 @@ const Dashboard = ({
             ref={printRef}
             staffRows={staffRows}
             theme={printTheme}
-            weeklyScoreSummary={weeklyScoreSummary}
+            weeklyScoreSummary={effectiveWeeklyScoreSummary}
           />
         </div>
 

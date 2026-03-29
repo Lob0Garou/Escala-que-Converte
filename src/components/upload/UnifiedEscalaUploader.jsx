@@ -100,7 +100,17 @@ const UnifiedEscalaUploader = ({
 
         <div className="mt-5 flex flex-col items-center gap-3">
           {isLoading ? (
-            <p className="max-w-[320px] text-[15px] leading-relaxed text-text-secondary">Processando arquivo...</p>
+            <div className="max-w-[360px] space-y-1.5 text-center">
+              <p className="text-[15px] font-semibold leading-relaxed text-text-primary">
+                Carregando escala...
+              </p>
+              <p className="text-[14px] leading-relaxed text-text-secondary">
+                Pode levar alguns segundos.
+              </p>
+              <p className="text-[13px] leading-relaxed text-text-muted">
+                O tempo varia de acordo com o tamanho da escala.
+              </p>
+            </div>
           ) : status === 'success' ? (
             <p className="max-w-[320px] text-[15px] font-semibold leading-relaxed text-green-brand">Escala carregada com sucesso.</p>
           ) : status === 'error' ? (

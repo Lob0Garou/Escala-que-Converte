@@ -452,6 +452,35 @@ export const buildWeeklyDisplaySummary = ({
   };
 };
 
+export const applyWeeklyBaselineOverride = (
+  weeklyScoreSummary = null,
+  baselineScoreOverride = null,
+) => {
+  const normalizedBaseline = Number.isFinite(Number(baselineScoreOverride))
+    ? Number(Number(baselineScoreOverride).toFixed(1))
+    : null;
+
+  if (!weeklyScoreSummary || normalizedBaseline === null) {
+    return weeklyScoreSummary;
+  }
+
+  const visibleScore = weeklyScoreSummary.visibleWeeklyScoreAvg;
+  const visibleVsBaselineGap =
+    Number.isFinite(visibleScore)
+      ? Number((visibleScore - normalizedBaseline).toFixed(1))
+      : null;
+
+  return {
+    ...weeklyScoreSummary,
+    baselineWeeklyScoreAvg: normalizedBaseline,
+    currentWeeklyScoreAvg: normalizedBaseline,
+    baselineAverageScore: normalizedBaseline,
+    visibleVsBaselineGap,
+    weeklyScoreGap: visibleVsBaselineGap,
+    deltaScore: visibleVsBaselineGap,
+  };
+};
+
 export default {
   mapScheduleShiftToStaffRow,
   buildDailyScoreInput,
@@ -459,4 +488,5 @@ export default {
   computeDailyPotentialGain,
   computeWeeklyScheduleScoreSummary,
   buildWeeklyDisplaySummary,
+  applyWeeklyBaselineOverride,
 };

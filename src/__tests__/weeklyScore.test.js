@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeWeeklyScheduleScoreSummary } from '../lib/weeklyScore.js';
+import {
+  applyWeeklyBaselineOverride,
+  computeWeeklyScheduleScoreSummary,
+} from '../lib/weeklyScore.js';
 
 const diasSemana = {
   SEGUNDA: '1. Seg',
@@ -95,5 +98,24 @@ describe('weeklyScore', () => {
     assert.equal(summary.days.find((day) => day.day === 'DOMINGO')?.hasCurrentSchedule, false);
     assert.equal(summary.days.find((day) => day.day === 'DOMINGO')?.shouldCountInAverage, false);
     assert.equal(summary.daysCountConsidered, 2);
+  });
+
+  it('mantem baseline semanal travado quando existe override persistido', () => {
+    const summary = computeWeeklyScheduleScoreSummary({
+      cuponsData,
+      salesData: [],
+      staffRows: optimizedStaffRows,
+      baselineStaffRows,
+      diasSemana,
+      referenceDate: '2026-03-02',
+    });
+
+    const lockedSummary = applyWeeklyBaselineOverride(summary, 68.4);
+
+    assert.equal(lockedSummary.baselineWeeklyScoreAvg, 68.4);
+    assert.equal(lockedSummary.currentWeeklyScoreAvg, 68.4);
+    assert.equal(lockedSummary.visibleWeeklyScoreAvg, 100);
+    assert.equal(lockedSummary.visibleVsBaselineGap, 31.6);
+    assert.equal(lockedSummary.deltaScore, 31.6);
   });
 });

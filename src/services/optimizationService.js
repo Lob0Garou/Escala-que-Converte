@@ -74,6 +74,32 @@ export const upsertOptimizationSnapshot = async ({
   return data?.id || null;
 };
 
+export const getLatestOptimizationSnapshot = async (scheduleWeekId) => {
+  if (!isReady() || !scheduleWeekId) return null;
+
+  const { data, error } = await supabase
+    .from('optimization_results')
+    .select('id, score_before, score_after, updated_at')
+    .eq('schedule_week_id', scheduleWeekId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    scoreBefore: normalizeNumeric(data.score_before),
+    scoreAfter: normalizeNumeric(data.score_after),
+    updatedAt: data.updated_at || null,
+  };
+};
+
 export default {
   upsertOptimizationSnapshot,
+  getLatestOptimizationSnapshot,
 };
